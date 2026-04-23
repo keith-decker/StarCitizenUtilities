@@ -13,6 +13,7 @@ from sc_config import (
     EXTRACT_REL_PATH,
     GAME_INI,
     GAME_PAK,
+    MISSION_BLUEPRINTS_INI,
     OUTPUT_MERGED,
     SHIP_COMPONENTS_INI,
     SRC_GLOBAL_INI,
@@ -78,6 +79,10 @@ def merge() -> tuple[int, int]:
     if SHIP_COMPONENTS_INI.exists():
         step(f"Loading ship component overrides: {SHIP_COMPONENTS_INI}")
         replacements.update(_load_overrides(SHIP_COMPONENTS_INI))
+
+    if MISSION_BLUEPRINTS_INI.exists():
+        step(f"Loading mission blueprint overrides: {MISSION_BLUEPRINTS_INI}")
+        replacements.update(_load_overrides(MISSION_BLUEPRINTS_INI))
 
     step(f"Loading overrides: {TARGET_STRINGS}")
     replacements.update(_load_overrides(TARGET_STRINGS))

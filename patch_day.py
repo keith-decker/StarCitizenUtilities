@@ -25,16 +25,19 @@ import argparse
 
 import sc_blueprints as blueprints
 import sc_localization as localization
+import sc_missions as missions
 import sc_ship_components as ship_components
 from sc_config import (
     BLUEPRINT_CSV,
     GAME_INI,
     GAME_PAK,
+    MISSION_BLUEPRINTS_INI,
     OUTPUT_MERGED,
     SHIP_COMPONENTS_CSV,
     SHIP_COMPONENTS_INI,
     TARGET_STRINGS,
     UNFORGE_EXE,
+    UNRESOLVED_ITEMS_MD,
     UNP4K_EXE,
     abort,
 )
@@ -87,7 +90,7 @@ def main() -> None:
 
     # --- full extract pipeline (--full only) ---
     # Runs before merge so ship_components.ini is ready for the merge step.
-    bp_count = csv_count = ini_count = None
+    bp_count = csv_count = ini_count = mission_ini_count = unresolved_count = None
     if args.full:
         if args.skip_dcb:
             print("\n>>> Skipping Game2.dcb extraction (--skip-dcb)")
@@ -95,6 +98,7 @@ def main() -> None:
             blueprints.extract_dcb()  # unforge Game2.dcb — shared prerequisite for both CSVs
         bp_count = blueprints.extract_blueprints()
         csv_count, ini_count = ship_components.extract_ship_components()
+        mission_ini_count, unresolved_count = missions.extract_mission_blueprints()
 
     # --- merge (always runs; picks up ship_components.ini automatically if present) ---
     sub_count, line_count = localization.merge()
@@ -115,6 +119,12 @@ def main() -> None:
         print(f"    Component CSV   : {csv_count} rows → {SHIP_COMPONENTS_CSV}")
     if ini_count is not None:
         print(f"    Component INI   : {ini_count} entries → {SHIP_COMPONENTS_INI}")
+    if mission_ini_count is not None:
+        print(
+            f"    Mission INI     : {mission_ini_count} entries → {MISSION_BLUEPRINTS_INI}"
+        )
+    if unresolved_count is not None:
+        print(f"    Unresolved      : {unresolved_count} items → {UNRESOLVED_ITEMS_MD}")
     if args.deploy:
         print(f"    Deployed to     : {GAME_INI}")
     print("\nDone.")

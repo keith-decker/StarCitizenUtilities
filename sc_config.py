@@ -37,8 +37,14 @@ OUTPUT_MERGED = PROJECT_DIR / "output" / "merged.ini"
 BLUEPRINT_CSV = PROJECT_DIR / "output" / "blueprint_rewards.csv"
 SHIP_COMPONENTS_CSV = PROJECT_DIR / "output" / "ship_components.csv"
 SHIP_COMPONENTS_INI = (
-    PROJECT_DIR / "ship_components.ini"
+    PROJECT_DIR / "output" / "ship_components.ini"
 )  # generated; fed into the localization merge
+MISSION_BLUEPRINTS_INI = (
+    PROJECT_DIR / "output" / "mission_blueprints.ini"
+)  # generated; fed into the localization merge
+UNRESOLVED_ITEMS_MD = (
+    PROJECT_DIR / "output" / "unresolved_blueprint_items.md"
+)  # report of items with no display name
 
 # Ship component types to include in the extraction
 COMPONENT_TYPES = {"QuantumDrive", "Shield", "PowerPlant", "Cooler", "Radar"}

@@ -2,6 +2,8 @@
 src/global.ini
 output/merged.ini
 ship_components.ini
+mission_blueprints.ini
+unresolved_blueprint_items.md
 blueprint_rewards.csv
 ship_components.csv
 
