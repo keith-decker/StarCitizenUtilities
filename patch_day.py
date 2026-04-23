@@ -7,13 +7,16 @@ Modes:
   --full     Full extract — localization + blueprint rewards CSV + ship components CSV
 
 Flags:
-  --deploy   Copy merged.ini to the live game folder after merging (any mode)
+  --deploy     Copy merged.ini to the live game folder after merging (any mode)
+  --skip-dcb   Skip the unforge Game2.dcb extraction step (use existing records)
 
 Usage:
-    python patch_day.py                   # localization merge only
-    python patch_day.py --deploy          # localization merge + deploy to game
-    python patch_day.py --full            # localization + blueprints + ship components
-    python patch_day.py --full --deploy   # everything + deploy to game
+    python patch_day.py                          # localization merge only
+    python patch_day.py --deploy                 # localization merge + deploy to game
+    python patch_day.py --full                   # localization + blueprints + ship components
+    python patch_day.py --full --deploy          # everything + deploy to game
+    python patch_day.py --full --skip-dcb        # full extract, reuse existing DCB records
+    python patch_day.py --full --skip-dcb --deploy  # same + deploy to game
 
 All paths are configured in sc_config.py.
 """
@@ -44,8 +47,9 @@ def main() -> None:
             "examples:\n"
             "  python patch_day.py                 localization merge only\n"
             "  python patch_day.py --deploy        localization merge + deploy to game\n"
-            "  python patch_day.py --full          localization + blueprints + ship components\n"
-            "  python patch_day.py --full --deploy everything + deploy to game\n"
+            "  python patch_day.py --full                localization + blueprints + ship components\n"
+            "  python patch_day.py --full --deploy       everything + deploy to game\n"
+            "  python patch_day.py --full --skip-dcb     full extract, reuse existing DCB records\n"
         ),
     )
     parser.add_argument(
@@ -57,6 +61,12 @@ def main() -> None:
         "--deploy",
         action="store_true",
         help="Copy merged.ini to the live game folder after merging.",
+    )
+    parser.add_argument(
+        "--skip-dcb",
+        action="store_true",
+        dest="skip_dcb",
+        help="Skip unforge Game2.dcb extraction and use existing DataForge records (useful during testing).",
     )
     args = parser.parse_args()
 
@@ -78,7 +88,10 @@ def main() -> None:
     # --- full extract pipeline (--full only) ---
     bp_count = comp_count = None
     if args.full:
-        blueprints.extract_dcb()  # unforge Game2.dcb — shared prerequisite for both CSVs
+        if args.skip_dcb:
+            print("\n>>> Skipping Game2.dcb extraction (--skip-dcb)")
+        else:
+            blueprints.extract_dcb()  # unforge Game2.dcb — shared prerequisite for both CSVs
         bp_count = blueprints.extract_blueprints()
         comp_count = ship_components.extract_ship_components()
 

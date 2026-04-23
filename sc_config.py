@@ -34,8 +34,8 @@ PROJECT_DIR = Path(r"G:\StarCitizenUtilities")
 SRC_GLOBAL_INI = PROJECT_DIR / "src" / "global.ini"
 TARGET_STRINGS = PROJECT_DIR / "target_strings.ini"
 OUTPUT_MERGED = PROJECT_DIR / "output" / "merged.ini"
-BLUEPRINT_CSV = PROJECT_DIR / "blueprint_rewards.csv"
-SHIP_COMPONENTS_CSV = PROJECT_DIR / "ship_components.csv"
+BLUEPRINT_CSV = PROJECT_DIR / "output" / "blueprint_rewards.csv"
+SHIP_COMPONENTS_CSV = PROJECT_DIR / "output" / "ship_components.csv"
 
 # Ship component types to include in the extraction
 COMPONENT_TYPES = {"QuantumDrive", "Shield", "PowerPlant", "Cooler", "Radar"}

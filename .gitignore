@@ -1,6 +1,8 @@
 # Generated files — produced by patch_day.py, not source-controlled
 src/global.ini
 output/merged.ini
+blueprint_rewards.csv
+ship_components.csv
 
 # Python bytecode
 *.pyc
