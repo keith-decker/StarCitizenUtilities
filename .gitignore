@@ -1,3 +1,7 @@
 # Generated files — produced by patch_day.py, not source-controlled
 src/global.ini
 output/merged.ini
+
+# Python bytecode
+*.pyc
+__pycache__/
