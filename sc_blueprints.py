@@ -62,9 +62,8 @@ def extract_blueprints() -> int:
 
     def _resolve_item_name(item_id: str) -> str:
         """Return display name for item_id, falling back to entity XML displayName."""
-        name = (
-            localization.get(f"item_Name{item_id}")
-            or localization.get(f"item_Name_{item_id}")
+        name = localization.get(f"item_Name{item_id}") or localization.get(
+            f"item_Name_{item_id}"
         )
         if name:
             return name
