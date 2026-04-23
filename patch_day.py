@@ -32,6 +32,7 @@ from sc_config import (
     GAME_PAK,
     OUTPUT_MERGED,
     SHIP_COMPONENTS_CSV,
+    SHIP_COMPONENTS_INI,
     TARGET_STRINGS,
     UNFORGE_EXE,
     UNP4K_EXE,
@@ -80,20 +81,23 @@ def main() -> None:
     if args.full and not UNFORGE_EXE.exists():
         abort(f"unforge.exe not found: {UNFORGE_EXE}")
 
-    # --- localization pipeline (always runs) ---
+    # --- extract pak (always runs) ---
     localization.extract_pak()
     localization.copy_to_src()
-    sub_count, line_count = localization.merge()
 
     # --- full extract pipeline (--full only) ---
-    bp_count = comp_count = None
+    # Runs before merge so ship_components.ini is ready for the merge step.
+    bp_count = csv_count = ini_count = None
     if args.full:
         if args.skip_dcb:
             print("\n>>> Skipping Game2.dcb extraction (--skip-dcb)")
         else:
             blueprints.extract_dcb()  # unforge Game2.dcb — shared prerequisite for both CSVs
         bp_count = blueprints.extract_blueprints()
-        comp_count = ship_components.extract_ship_components()
+        csv_count, ini_count = ship_components.extract_ship_components()
+
+    # --- merge (always runs; picks up ship_components.ini automatically if present) ---
+    sub_count, line_count = localization.merge()
 
     # --- deploy (--deploy only) ---
     if args.deploy:
@@ -107,8 +111,10 @@ def main() -> None:
     print(f"    Merged output   : {OUTPUT_MERGED}")
     if bp_count is not None:
         print(f"    Blueprints      : {bp_count} rows → {BLUEPRINT_CSV}")
-    if comp_count is not None:
-        print(f"    Ship components : {comp_count} rows → {SHIP_COMPONENTS_CSV}")
+    if csv_count is not None:
+        print(f"    Component CSV   : {csv_count} rows → {SHIP_COMPONENTS_CSV}")
+    if ini_count is not None:
+        print(f"    Component INI   : {ini_count} entries → {SHIP_COMPONENTS_INI}")
     if args.deploy:
         print(f"    Deployed to     : {GAME_INI}")
     print("\nDone.")

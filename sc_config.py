@@ -36,6 +36,9 @@ TARGET_STRINGS = PROJECT_DIR / "target_strings.ini"
 OUTPUT_MERGED = PROJECT_DIR / "output" / "merged.ini"
 BLUEPRINT_CSV = PROJECT_DIR / "output" / "blueprint_rewards.csv"
 SHIP_COMPONENTS_CSV = PROJECT_DIR / "output" / "ship_components.csv"
+SHIP_COMPONENTS_INI = (
+    PROJECT_DIR / "ship_components.ini"
+)  # generated; fed into the localization merge
 
 # Ship component types to include in the extraction
 COMPONENT_TYPES = {"QuantumDrive", "Shield", "PowerPlant", "Cooler", "Radar"}

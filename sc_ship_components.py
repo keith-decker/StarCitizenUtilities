@@ -13,7 +13,8 @@ from sc_config import (
     DATA_ROOT,
     EXTRACTED_INI,
     SHIP_COMPONENTS_CSV,
-    UNP4K_DIR,
+    SHIP_COMPONENTS_INI,
+    SRC_GLOBAL_INI,
     step,
 )
 
@@ -29,6 +30,73 @@ _RE_REF = re.compile(r'__ref="([0-9a-f-]{36})"')
 _RE_CODE = re.compile(r'\bCode="([^"]+)"')
 _RE_CLASS = re.compile(r"\\nClass:\s*([^\\]+)")
 
+# Maps full class name (from DataForge desc field) → 2-letter abbreviation used in override values
+CLASS_ABBREV: dict[str, str] = {
+    "Civilian": "Ci",
+    "Industrial": "In",
+    "Military": "Mi",
+    "Competition": "Co",
+    "Stealth": "St",
+}
+
+
+def _load_key_map(path) -> dict[str, str]:
+    """Return lowercase_key → original_case_key for every key=value line in path."""
+    key_map: dict[str, str] = {}
+    with open(path, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            eq = line.find("=")
+            if eq > 0:
+                orig_key = line[:eq].strip()
+                if orig_key:
+                    key_map[orig_key.lower()] = orig_key
+    return key_map
+
+
+def _find_loc_key(key_map: dict[str, str], entity_class: str) -> str:
+    """Return the original-case localization key for entity_class, or '' if not found."""
+    base = re.sub(r"_SCItem$", "", entity_class, flags=re.IGNORECASE)
+    for template, ec in (
+        ("item_Name_{}", entity_class),
+        ("item_Name{}", entity_class),
+        ("item_Name_{}", base),
+        ("item_Name{}", base),
+    ):
+        lower = template.format(ec).lower()
+        if lower in key_map:
+            return key_map[lower]
+    return ""
+
+
+def build_components_ini(rows: list[dict]) -> int:
+    """
+    Generate ship_components.ini from the extracted component rows.
+    Each line: <loc_key>=<Name> (<ClassAbbrev>/<Grade>)
+    Only components with a resolved name and localization key are included.
+    Returns the number of unique entries written.
+    """
+    step(f"Building {SHIP_COMPONENTS_INI.name} from {len(rows)} components")
+    key_map = _load_key_map(SRC_GLOBAL_INI)
+
+    seen: set[str] = set()
+    entries: list[tuple[str, str]] = []
+    for row in rows:
+        if not row["Name"] or not row["EntityClass"]:
+            continue
+        loc_key = _find_loc_key(key_map, row["EntityClass"])
+        if not loc_key or loc_key in seen:
+            continue
+        class_abbrev = CLASS_ABBREV.get(row["Class"], row["Class"])
+        entries.append((loc_key, f"{row['Name']} ({class_abbrev}/{row['Grade']})"))
+        seen.add(loc_key)
+
+    with open(SHIP_COMPONENTS_INI, "w", encoding="utf-8") as f:
+        for key, value in entries:
+            f.write(f"{key}={value}\n")
+
+    print(f"      {len(entries)} entries written.")
+    return len(entries)
+
 
 def _load_localization() -> dict[str, str]:
     loc: dict[str, str] = {}
@@ -43,10 +111,10 @@ def _load_localization() -> dict[str, str]:
 def _resolve_name(loc: dict[str, str], entity_class: str) -> str:
     base = re.sub(r"_SCItem$", "", entity_class, flags=re.IGNORECASE)
     for key in (
-        f"item_name{entity_class}",
         f"item_name_{entity_class}",
-        f"item_name{base}",
+        f"item_name{entity_class}",
         f"item_name_{base}",
+        f"item_name{base}",
     ):
         if key.lower() in loc:
             return loc[key.lower()]
@@ -135,7 +203,7 @@ def extract_ship_components() -> int:
 
     print(f"      {len(rows)} components extracted.")
 
-    step(f"[4/4] Writing {SHIP_COMPONENTS_CSV}")
+    step(f"[4/5] Writing {SHIP_COMPONENTS_CSV}")
     fieldnames = [
         "EntityClass",
         "Name",
@@ -151,4 +219,6 @@ def extract_ship_components() -> int:
         writer.writeheader()
         writer.writerows(rows)
 
-    return len(rows)
+    step(f"[5/5] Generating localization overrides")
+    ini_count = build_components_ini(rows)
+    return len(rows), ini_count

@@ -6,6 +6,7 @@ overrides from target_strings.ini, and optionally deploy to the game folder.
 import re
 import shutil
 import subprocess
+from pathlib import Path
 
 from sc_config import (
     EXTRACTED_INI,
@@ -13,6 +14,7 @@ from sc_config import (
     GAME_INI,
     GAME_PAK,
     OUTPUT_MERGED,
+    SHIP_COMPONENTS_INI,
     SRC_GLOBAL_INI,
     TARGET_STRINGS,
     UNP4K_DIR,
@@ -39,6 +41,21 @@ def extract_pak() -> None:
         abort(f"unp4k finished but expected output not found: {EXTRACTED_INI}")
 
 
+def _load_overrides(path: Path) -> dict[str, str]:
+    """Load key=value pairs from an ini-style override file into a dict."""
+    overrides: dict[str, str] = {}
+    key_pattern = re.compile(r"^(.*?)=(.*)$")
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            m = key_pattern.match(line.rstrip("\n"))
+            if m:
+                key = m.group(1).strip()
+                value = m.group(2)  # do not strip — preserves exact value
+                if key:
+                    overrides[key] = value
+    return overrides
+
+
 def copy_to_src() -> None:
     """Copy the extracted ini to the project src directory."""
     step(f"Copying extracted ini to: {SRC_GLOBAL_INI}")
@@ -56,18 +73,14 @@ def merge() -> tuple[int, int]:
 
     Returns (substitution_count, line_count).
     """
-    step(f"Loading overrides: {TARGET_STRINGS}")
-
     replacements: dict[str, str] = {}
-    key_pattern = re.compile(r"^(.*?)=(.*)$")
-    with open(TARGET_STRINGS, encoding="utf-8") as f:
-        for line in f:
-            m = key_pattern.match(line.rstrip("\n"))
-            if m:
-                key = m.group(1).strip()
-                value = m.group(2)  # do not strip — preserves exact value
-                if key:
-                    replacements[key] = value
+
+    if SHIP_COMPONENTS_INI.exists():
+        step(f"Loading ship component overrides: {SHIP_COMPONENTS_INI}")
+        replacements.update(_load_overrides(SHIP_COMPONENTS_INI))
+
+    step(f"Loading overrides: {TARGET_STRINGS}")
+    replacements.update(_load_overrides(TARGET_STRINGS))
 
     step(f"Merging into global.ini ({len(replacements)} override(s) loaded)")
     OUTPUT_MERGED.parent.mkdir(parents=True, exist_ok=True)
