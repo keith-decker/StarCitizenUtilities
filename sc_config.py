@@ -37,6 +37,8 @@ DATA_ROOT = EXTRACT_DIR / "Data" / "Libs" / "Foundry" / "Records"
 OUTPUT_MERGED = PROJECT_DIR / "output" / "merged.ini"
 BLUEPRINT_CSV = PROJECT_DIR / "output" / "blueprint_rewards.csv"
 SHIP_COMPONENTS_CSV = PROJECT_DIR / "output" / "ship_components.csv"
+FPS_WEAPONS_CSV = PROJECT_DIR / "output" / "fps_weapons.csv"
+SHIP_ARMOR_CSV = PROJECT_DIR / "output" / "ship_armor.csv"
 SHIP_COMPONENTS_INI = (
     PROJECT_DIR / "output" / "ship_components.ini"
 )  # generated; fed into the localization merge

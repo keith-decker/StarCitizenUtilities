@@ -7,6 +7,8 @@ mission_blueprints.ini
 unresolved_blueprint_items.md
 blueprint_rewards.csv
 ship_components.csv
+fps_weapons.csv
+ship_armor.csv
 
 # Python bytecode
 *.pyc

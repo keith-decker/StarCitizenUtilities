@@ -4,6 +4,7 @@
         "?:itemRef": true,
         "ItemRef": true,
         "item_ref": true,
-        "print('itemRefs:',": true
+        "print('itemRefs:',": true,
+        "ForEach-Object": true
     }
 }

@@ -24,16 +24,20 @@ All paths are configured in sc_config.py.
 import argparse
 
 import sc_blueprints as blueprints
+import sc_fps_weapons as fps_weapons
 import sc_localization as localization
 import sc_missions as missions
+import sc_ship_armor as ship_armor
 import sc_ship_components as ship_components
 from sc_config import (
     BLUEPRINT_CSV,
     EXTRACT_DIR,
+    FPS_WEAPONS_CSV,
     GAME_INI,
     GAME_PAK,
     MISSION_BLUEPRINTS_INI,
     OUTPUT_MERGED,
+    SHIP_ARMOR_CSV,
     SHIP_COMPONENTS_CSV,
     SHIP_COMPONENTS_INI,
     TARGET_STRINGS,
@@ -94,7 +98,9 @@ def main() -> None:
 
     # --- full extract pipeline (--full only) ---
     # Runs before merge so ship_components.ini is ready for the merge step.
-    bp_count = csv_count = ini_count = mission_ini_count = unresolved_count = None
+    bp_count = csv_count = ini_count = mission_ini_count = unresolved_count = (
+        fps_count
+    ) = armor_count = None
     if args.full:
         if args.skip_dcb:
             print("\n>>> Skipping Game2.dcb extraction (--skip-dcb)")
@@ -103,6 +109,8 @@ def main() -> None:
         bp_count = blueprints.extract_blueprints()
         csv_count, ini_count = ship_components.extract_ship_components()
         mission_ini_count, unresolved_count = missions.extract_mission_blueprints()
+        fps_count = fps_weapons.extract_fps_weapons()
+        armor_count = ship_armor.extract_ship_armor()
 
     # --- merge (always runs; picks up ship_components.ini automatically if present) ---
     sub_count, line_count = localization.merge()
@@ -129,6 +137,10 @@ def main() -> None:
         )
     if unresolved_count is not None:
         print(f"    Unresolved      : {unresolved_count} items → {UNRESOLVED_ITEMS_MD}")
+    if fps_count is not None:
+        print(f"    FPS Weapons     : {fps_count} rows → {FPS_WEAPONS_CSV}")
+    if armor_count is not None:
+        print(f"    Ship Armor      : {armor_count} rows → {SHIP_ARMOR_CSV}")
     if args.deploy:
         print(f"    Deployed to     : {GAME_INI}")
     print("\nDone.")
