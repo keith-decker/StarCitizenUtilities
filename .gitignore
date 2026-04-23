@@ -1,4 +1,5 @@
 # Generated files — produced by patch_day.py, not source-controlled
+extract/
 src/global.ini
 output/merged.ini
 ship_components.ini

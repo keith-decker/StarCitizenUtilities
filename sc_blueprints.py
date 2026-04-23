@@ -11,9 +11,11 @@ import xml.etree.ElementTree as ET
 from sc_config import (
     BLUEPRINT_CSV,
     DATA_ROOT,
+    EXTRACT_DIR,
     EXTRACTED_INI,
     GAME_DCB_REL,
-    UNP4K_DIR,
+    GAME_PAK,
+    UNP4K_EXE,
     UNFORGE_EXE,
     abort,
     step,
@@ -21,14 +23,32 @@ from sc_config import (
 
 
 def extract_dcb() -> None:
-    """Run unforge.exe to unpack Game2.dcb records into Data\\Libs\\Foundry\\Records\\."""
-    step("Extracting Game2.dcb records with unforge (this may take a few minutes)")
-    result = subprocess.run(
-        [str(UNFORGE_EXE), str(GAME_DCB_REL)],
-        cwd=str(UNP4K_DIR),
+    """Extract Game2.dcb from Data.p4k, then unpack its records with unforge."""
+    # Step 1: pull Game2.dcb out of Data.p4k (unp4k writes to cwd)
+    step("Extracting Game2.dcb from Data.p4k")
+    r1 = subprocess.run(
+        [str(UNP4K_EXE), str(GAME_PAK), str(GAME_DCB_REL).replace("\\", "/")],
+        cwd=str(EXTRACT_DIR),
     )
-    if result.returncode != 0:
-        abort(f"unforge.exe exited with code {result.returncode}")
+    if r1.returncode != 0:
+        abort(f"unp4k.exe exited with code {r1.returncode} while extracting Game2.dcb")
+    dcb_path = EXTRACT_DIR / GAME_DCB_REL
+    if not dcb_path.exists():
+        abort(f"Game2.dcb not found after extraction: {dcb_path}")
+
+    # Step 2: wipe stale records, then unforge the fresh DCB into XML records
+    if DATA_ROOT.exists():
+        step(f"Removing stale DataForge records: {DATA_ROOT}")
+        import shutil
+
+        shutil.rmtree(DATA_ROOT)
+    step("Unpacking Game2.dcb records with unforge (this may take a few minutes)")
+    r2 = subprocess.run(
+        [str(UNFORGE_EXE), str(GAME_DCB_REL)],
+        cwd=str(EXTRACT_DIR),
+    )
+    if r2.returncode != 0:
+        abort(f"unforge.exe exited with code {r2.returncode}")
 
 
 def extract_blueprints() -> int:
@@ -106,9 +126,7 @@ def extract_blueprints() -> int:
             root = ET.parse(cf).getroot()
         except ET.ParseError:
             continue
-        for cc in root.iter():
-            if cc.get("__polymorphicType") != "CareerContract":
-                continue
+        for cc in root.iter("CareerContract"):
             mission_name = cc.get("debugName", "")
             if not mission_name:
                 continue

@@ -29,6 +29,7 @@ import sc_missions as missions
 import sc_ship_components as ship_components
 from sc_config import (
     BLUEPRINT_CSV,
+    EXTRACT_DIR,
     GAME_INI,
     GAME_PAK,
     MISSION_BLUEPRINTS_INI,
@@ -83,6 +84,9 @@ def main() -> None:
         abort(f"target_strings.ini not found: {TARGET_STRINGS}")
     if args.full and not UNFORGE_EXE.exists():
         abort(f"unforge.exe not found: {UNFORGE_EXE}")
+
+    # --- prepare extract directory ---
+    EXTRACT_DIR.mkdir(parents=True, exist_ok=True)
 
     # --- extract pak (always runs) ---
     localization.extract_pak()

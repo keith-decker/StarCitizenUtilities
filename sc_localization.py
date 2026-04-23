@@ -9,6 +9,7 @@ import subprocess
 from pathlib import Path
 
 from sc_config import (
+    EXTRACT_DIR,
     EXTRACTED_INI,
     EXTRACT_REL_PATH,
     GAME_INI,
@@ -18,7 +19,6 @@ from sc_config import (
     SHIP_COMPONENTS_INI,
     SRC_GLOBAL_INI,
     TARGET_STRINGS,
-    UNP4K_DIR,
     UNP4K_EXE,
     abort,
     step,
@@ -34,7 +34,7 @@ def extract_pak() -> None:
     step(f"Extracting {EXTRACT_REL_PATH} from {GAME_PAK.name}")
     result = subprocess.run(
         [str(UNP4K_EXE), str(GAME_PAK), EXTRACT_REL_PATH],
-        cwd=str(UNP4K_DIR),
+        cwd=str(EXTRACT_DIR),
     )
     if result.returncode != 0:
         abort(f"unp4k.exe exited with code {result.returncode}")

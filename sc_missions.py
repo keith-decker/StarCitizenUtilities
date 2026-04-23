@@ -99,9 +99,7 @@ def extract_mission_blueprints() -> tuple[int, int]:
             root = ET.parse(f).getroot()
         except ET.ParseError:
             continue
-        for cc in root.iter():
-            if cc.get("__polymorphicType") != "CareerContract":
-                continue
+        for cc in root.iter("CareerContract"):
             debug_name = cc.get("debugName", "")
             if not debug_name:
                 continue
