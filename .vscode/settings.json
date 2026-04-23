@@ -1,0 +1,9 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "item_refs": true,
+        "?:itemRef": true,
+        "ItemRef": true,
+        "item_ref": true,
+        "print('itemRefs:',": true
+    }
+}

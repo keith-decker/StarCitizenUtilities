@@ -50,6 +50,35 @@ def extract_blueprints() -> int:
                 localization[line[:eq].strip()] = line[eq + 1 :].rstrip("\n")
     print(f"      {len(localization):,} strings loaded.")
 
+    # Pre-build a filename→path index for entity XML fallback lookups.
+    # We only READ entity files for items whose name wasn’t found via direct key
+    # lookup, so this stays fast even though the entity tree is large.
+    entity_stem_index: dict[str, object] = {}
+    for xf in (DATA_ROOT / "entities" / "scitem").rglob("*.xml"):
+        entity_stem_index[xf.stem.lower()] = xf
+
+    _re_display = re.compile(r'displayName="@([^"]+)"')
+    _PLACEHOLDER_KEYS = {"LOC_UNINITIALIZED", "LOC_PLACEHOLDER"}
+
+    def _resolve_item_name(item_id: str) -> str:
+        """Return display name for item_id, falling back to entity XML displayName."""
+        name = (
+            localization.get(f"item_Name{item_id}")
+            or localization.get(f"item_Name_{item_id}")
+        )
+        if name:
+            return name
+        xf = entity_stem_index.get(item_id.lower())
+        if xf:
+            txt = xf.read_text(encoding="utf-8", errors="replace")
+            for key in _re_display.findall(txt):
+                if key in _PLACEHOLDER_KEYS:
+                    continue
+                name = localization.get(key, "")
+                if name:
+                    return name
+        return item_id  # fallback: raw ID
+
     step("[2/5] Indexing BlueprintPoolRecord files by GUID")
     pool_index: dict[str, object] = {}
     for f in (
@@ -104,11 +133,7 @@ def extract_blueprints() -> int:
                     item_id = bp_file.stem
                     if item_id.lower().startswith("bp_craft_"):
                         item_id = item_id[len("bp_craft_") :]
-                    item_name = (
-                        localization.get(f"item_Name{item_id}")
-                        or localization.get(f"item_Name_{item_id}")
-                        or item_id
-                    )
+                    item_name = _resolve_item_name(item_id)
                     rows.append(
                         {
                             "MissionName": mission_name,
