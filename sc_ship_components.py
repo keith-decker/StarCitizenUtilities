@@ -53,9 +53,16 @@ def _load_key_map(path) -> dict[str, str]:
     return key_map
 
 
-def _find_loc_key(key_map: dict[str, str], entity_class: str) -> str:
-    """Return the original-case localization key for entity_class, or '' if not found."""
+def _find_loc_keys(key_map: dict[str, str], entity_class: str) -> list[str]:
+    """Return ALL original-case localization keys that exist in key_map for entity_class.
+
+    Some components have multiple key variants in global.ini (e.g. item_Name_FOO and
+    item_NameFOO_SCItem). We must write overrides for all of them so the game always
+    sees the formatted value regardless of which variant it resolves at runtime.
+    """
     base = re.sub(r"_SCItem$", "", entity_class, flags=re.IGNORECASE)
+    results: list[str] = []
+    seen_lower: set[str] = set()
     for template, ec in (
         ("item_Name_{}", entity_class),
         ("item_Name{}", entity_class),
@@ -63,9 +70,10 @@ def _find_loc_key(key_map: dict[str, str], entity_class: str) -> str:
         ("item_Name{}", base),
     ):
         lower = template.format(ec).lower()
-        if lower in key_map:
-            return key_map[lower]
-    return ""
+        if lower in key_map and lower not in seen_lower:
+            results.append(key_map[lower])
+            seen_lower.add(lower)
+    return results
 
 
 def build_components_ini(rows: list[dict]) -> int:
@@ -83,12 +91,16 @@ def build_components_ini(rows: list[dict]) -> int:
     for row in rows:
         if not row["Name"] or not row["EntityClass"]:
             continue
-        loc_key = _find_loc_key(key_map, row["EntityClass"])
-        if not loc_key or loc_key in seen:
+        loc_keys = _find_loc_keys(key_map, row["EntityClass"])
+        if not loc_keys:
             continue
         class_abbrev = CLASS_ABBREV.get(row["Class"], row["Class"])
-        entries.append((loc_key, f"{row['Name']} ({class_abbrev}/{row['Grade']})"))
-        seen.add(loc_key)
+        value = f"{row['Name']} ({class_abbrev}/{row['Grade']})"
+        for loc_key in loc_keys:
+            if loc_key in seen:
+                continue
+            entries.append((loc_key, value))
+            seen.add(loc_key)
 
     with open(SHIP_COMPONENTS_INI, "w", encoding="utf-8") as f:
         for key, value in entries:

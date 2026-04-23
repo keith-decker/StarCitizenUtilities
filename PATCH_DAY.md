@@ -23,7 +23,9 @@ These only need to be done once (or after reinstalling tools/game).
    ```
    The `user.cfg` file lives in `G:\RSI\StarCitizen\LIVE\` (create it if it doesn't exist).
 
-5. **target_strings.ini** populated with your custom overrides (`G:\StarCitizenUtilities\target_strings.ini`)
+5. **target_strings.ini** populated with your manual overrides (`G:\StarCitizenUtilities\target_strings.ini`).
+   Contains: vehicle names, commodity short names, and any one-off manual fixes.
+   Does **not** contain mission text or component names — those are auto-generated.
 
 ---
 
@@ -37,25 +39,63 @@ These only need to be done once (or after reinstalling tools/game).
 
 ## Running the Script
 
-```powershell
-# Extract, merge, and generate blueprint CSV — does NOT write to game folder
-python G:\StarCitizenUtilities\patch_day.py
+### Localization merge only (fast — no DataForge extraction)
 
-# Same as above, plus copies merged.ini directly to the game's localization folder
-python G:\StarCitizenUtilities\patch_day.py --deploy
+```powershell
+python patch_day.py                   # merge only, no deploy
+python patch_day.py --deploy          # merge + copy to game folder
 ```
 
-**Outputs:**
+### Full pipeline (recommended on patch day)
 
-| File | Description |
-|---|---|
-| `G:\StarCitizenUtilities\src\global.ini` | Raw localization extracted from Data.p4k |
-| `G:\StarCitizenUtilities\output\merged.ini` | global.ini with your custom strings applied |
-| `G:\un4pk\blueprint_rewards.csv` | Mission → blueprint reward mappings |
-| `G:\RSI\StarCitizen\LIVE\Data\Localization\english\global.ini` | Live game file (only with `--deploy`) |
+```powershell
+python patch_day.py --full            # extract + merge, no deploy
+python patch_day.py --full --deploy   # extract + merge + deploy to game
+```
+
+`--full` additionally:
+- Runs `unforge.exe` to extract all DataForge records from `Game2.dcb`
+- Rebuilds `blueprint_rewards.csv` from contract/crafting XML records
+- Rebuilds `ship_components.csv` and `ship_components.ini` from item XML records
+- Rebuilds `mission_blueprints.ini` — mission description overrides with blueprint reward
+  lists appended, plus `[BP]` tags on matching mission titles
+
+### Re-run generation without re-extracting DCB (saves time when iterating)
+
+```powershell
+python patch_day.py --full --skip-dcb          # skip unforge, reuse existing records
+python patch_day.py --full --skip-dcb --deploy # same + deploy
+```
 
 ---
 
-## After Updating target_strings.ini
+## Output Files
 
-If a game patch renames or removes a key you override, the substitution will silently be skipped (the original game string will appear in the output). The script prints a substitution count at the end — if the number drops unexpectedly compared to prior runs, check `target_strings.ini` for stale keys against the new `src\global.ini`.
+| File | Description | In git? |
+|---|---|---|
+| `src\global.ini` | Raw localization extracted from `Data.p4k` | No |
+| `output\merged.ini` | Final merged localization (deploy this) | No |
+| `output\blueprint_rewards.csv` | Mission → blueprint reward rows (`--full`) | Yes |
+| `output\ship_components.csv` | Ship component name rows (`--full`) | Yes |
+| `ship_components.ini` | Auto-generated component name overrides (`--full`) | No |
+| `mission_blueprints.ini` | Auto-generated mission description + title overrides (`--full`) | No |
+| `unresolved_blueprint_items.md` | Items whose names couldn't be resolved from `global.ini` | No |
+| `G:\RSI\StarCitizen\LIVE\Data\Localization\english\global.ini` | Live game file (`--deploy` only) | — |
+
+---
+
+## Override Merge Order
+
+Overrides are applied lowest → highest priority:
+
+1. `ship_components.ini` — auto-generated component names (Grade/Class formatted)
+2. `mission_blueprints.ini` — auto-generated mission descriptions + `[BP]` title tags
+3. `target_strings.ini` — your manual overrides (always wins)
+
+---
+
+## After a Patch: Things to Check
+
+- **Substitution count drops** — a game patch may have renamed or removed a key in `target_strings.ini`. Compare `src\global.ini` against your overrides for stale keys.
+- **New blueprint items unresolved** — check `unresolved_blueprint_items.md`. Items listed there appear as raw IDs in mission text because their display name wasn't found in `global.ini`.
+- **New component types** — if new equipment categories appear (e.g. a new component type), they may need adding to `COMPONENT_TYPES` in `sc_config.py`.
