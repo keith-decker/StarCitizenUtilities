@@ -78,8 +78,8 @@ def main() -> None:
     # --- full extract pipeline (--full only) ---
     bp_count = comp_count = None
     if args.full:
-        blueprints.extract_dcb()   # unforge Game2.dcb — shared prerequisite for both CSVs
-        bp_count   = blueprints.extract_blueprints()
+        blueprints.extract_dcb()  # unforge Game2.dcb — shared prerequisite for both CSVs
+        bp_count = blueprints.extract_blueprints()
         comp_count = ship_components.extract_ship_components()
 
     # --- deploy (--deploy only) ---

@@ -13,8 +13,8 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 # unp4k / unforge tool directory
-UNP4K_DIR   = Path(r"G:\un4pk")
-UNP4K_EXE   = UNP4K_DIR / "unp4k.exe"
+UNP4K_DIR = Path(r"G:\un4pk")
+UNP4K_EXE = UNP4K_DIR / "unp4k.exe"
 UNFORGE_EXE = UNP4K_DIR / "unforge.exe"
 
 # Star Citizen installation
@@ -23,16 +23,18 @@ GAME_INI = Path(r"G:\RSI\StarCitizen\LIVE\Data\Localization\english\global.ini")
 
 # Paths inside the unp4k working directory
 EXTRACT_REL_PATH = "Data/Localization/english/global.ini"
-EXTRACTED_INI    = UNP4K_DIR / "Data" / "Localization" / "english" / "global.ini"
-GAME_DCB_REL     = Path("Data") / "Game2.dcb"   # relative, passed to unforge with cwd=UNP4K_DIR
-DATA_ROOT        = UNP4K_DIR / "Data" / "Libs" / "Foundry" / "Records"
+EXTRACTED_INI = UNP4K_DIR / "Data" / "Localization" / "english" / "global.ini"
+GAME_DCB_REL = (
+    Path("Data") / "Game2.dcb"
+)  # relative, passed to unforge with cwd=UNP4K_DIR
+DATA_ROOT = UNP4K_DIR / "Data" / "Libs" / "Foundry" / "Records"
 
 # Project output directory (this repo)
-PROJECT_DIR         = Path(r"G:\StarCitizenUtilities")
-SRC_GLOBAL_INI      = PROJECT_DIR / "src" / "global.ini"
-TARGET_STRINGS      = PROJECT_DIR / "target_strings.ini"
-OUTPUT_MERGED       = PROJECT_DIR / "output" / "merged.ini"
-BLUEPRINT_CSV       = PROJECT_DIR / "blueprint_rewards.csv"
+PROJECT_DIR = Path(r"G:\StarCitizenUtilities")
+SRC_GLOBAL_INI = PROJECT_DIR / "src" / "global.ini"
+TARGET_STRINGS = PROJECT_DIR / "target_strings.ini"
+OUTPUT_MERGED = PROJECT_DIR / "output" / "merged.ini"
+BLUEPRINT_CSV = PROJECT_DIR / "blueprint_rewards.csv"
 SHIP_COMPONENTS_CSV = PROJECT_DIR / "ship_components.csv"
 
 # Ship component types to include in the extraction

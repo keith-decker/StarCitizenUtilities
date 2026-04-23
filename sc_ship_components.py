@@ -18,16 +18,16 @@ from sc_config import (
 )
 
 SCITEM_ROOT = DATA_ROOT / "entities" / "scitem" / "ships"
-MFGR_ROOT   = DATA_ROOT / "scitemmanufacturer"
+MFGR_ROOT = DATA_ROOT / "scitemmanufacturer"
 
 GRADE_MAP = {"1": "A", "2": "B", "3": "C", "4": "D"}
 
 _RE_ATTACH = re.compile(r"<AttachDef\s[^>]+>")
-_RE_ATTR   = re.compile(r'\b(\w+)="([^"]*)"')
+_RE_ATTR = re.compile(r'\b(\w+)="([^"]*)"')
 _RE_ENTITY = re.compile(r"<EntityClassDefinition\.(\S+)\s")
-_RE_REF    = re.compile(r'__ref="([0-9a-f-]{36})"')
-_RE_CODE   = re.compile(r'\bCode="([^"]+)"')
-_RE_CLASS  = re.compile(r"\\nClass:\s*([^\\]+)")
+_RE_REF = re.compile(r'__ref="([0-9a-f-]{36})"')
+_RE_CODE = re.compile(r'\bCode="([^"]+)"')
+_RE_CLASS = re.compile(r"\\nClass:\s*([^\\]+)")
 
 
 def _load_localization() -> dict[str, str]:
@@ -36,7 +36,7 @@ def _load_localization() -> dict[str, str]:
         for line in f:
             eq = line.find("=")
             if eq > 0:
-                loc[line[:eq].strip().lower()] = line[eq + 1:].rstrip("\n")
+                loc[line[:eq].strip().lower()] = line[eq + 1 :].rstrip("\n")
     return loc
 
 
@@ -72,7 +72,7 @@ def _load_manufacturers(loc: dict[str, str]) -> dict[str, str]:
     index: dict[str, str] = {}
     for f in MFGR_ROOT.rglob("*.xml"):
         content = f.read_text(encoding="utf-8", errors="replace")
-        ref_m  = _RE_REF.search(content)
+        ref_m = _RE_REF.search(content)
         code_m = _RE_CODE.search(content)
         if not ref_m or not code_m:
             continue
@@ -112,29 +112,40 @@ def extract_ship_components() -> int:
         if item_type not in COMPONENT_TYPES:
             continue
 
-        sub_type  = attrs.get("SubType", "")
-        size      = attrs.get("Size", "")
-        grade     = GRADE_MAP.get(attrs.get("Grade", ""), attrs.get("Grade", ""))
-        mfgr      = mfgr_index.get(attrs.get("Manufacturer", ""), "")
+        sub_type = attrs.get("SubType", "")
+        size = attrs.get("Size", "")
+        grade = GRADE_MAP.get(attrs.get("Grade", ""), attrs.get("Grade", ""))
+        mfgr = mfgr_index.get(attrs.get("Manufacturer", ""), "")
 
         entity_m = _RE_ENTITY.search(content)
         entity_class = entity_m.group(1) if entity_m else ""
 
-        rows.append({
-            "EntityClass":  entity_class,
-            "Name":         _resolve_name(loc, entity_class) if entity_class else "",
-            "Type":         item_type,
-            "SubType":      "" if sub_type == "UNDEFINED" else sub_type,
-            "Size":         size,
-            "Grade":        grade,
-            "Class":        _resolve_class(loc, entity_class) if entity_class else "",
-            "Manufacturer": mfgr,
-        })
+        rows.append(
+            {
+                "EntityClass": entity_class,
+                "Name": _resolve_name(loc, entity_class) if entity_class else "",
+                "Type": item_type,
+                "SubType": "" if sub_type == "UNDEFINED" else sub_type,
+                "Size": size,
+                "Grade": grade,
+                "Class": _resolve_class(loc, entity_class) if entity_class else "",
+                "Manufacturer": mfgr,
+            }
+        )
 
     print(f"      {len(rows)} components extracted.")
 
     step(f"[4/4] Writing {SHIP_COMPONENTS_CSV}")
-    fieldnames = ["EntityClass", "Name", "Type", "SubType", "Size", "Grade", "Class", "Manufacturer"]
+    fieldnames = [
+        "EntityClass",
+        "Name",
+        "Type",
+        "SubType",
+        "Size",
+        "Grade",
+        "Class",
+        "Manufacturer",
+    ]
     with open(SHIP_COMPONENTS_CSV, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()

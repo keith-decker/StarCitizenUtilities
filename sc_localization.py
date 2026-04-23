@@ -65,7 +65,7 @@ def merge() -> tuple[int, int]:
             m = key_pattern.match(line.rstrip("\n"))
             if m:
                 key = m.group(1).strip()
-                value = m.group(2)   # do not strip — preserves exact value
+                value = m.group(2)  # do not strip — preserves exact value
                 if key:
                     replacements[key] = value
 
@@ -76,8 +76,9 @@ def merge() -> tuple[int, int]:
     line_count = 0
     split_pattern = re.compile(r"^(.*?)(=)(.*)$")
 
-    with open(SRC_GLOBAL_INI, encoding="utf-8") as fin, \
-         open(OUTPUT_MERGED, "w", encoding="utf-8") as fout:
+    with open(SRC_GLOBAL_INI, encoding="utf-8") as fin, open(
+        OUTPUT_MERGED, "w", encoding="utf-8"
+    ) as fout:
         for raw_line in fin:
             line_count += 1
             line = raw_line.rstrip("\n")

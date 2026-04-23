@@ -47,12 +47,14 @@ def extract_blueprints() -> int:
         for line in f:
             eq = line.find("=")
             if eq > 0:
-                localization[line[:eq].strip()] = line[eq + 1:].rstrip("\n")
+                localization[line[:eq].strip()] = line[eq + 1 :].rstrip("\n")
     print(f"      {len(localization):,} strings loaded.")
 
     step("[2/5] Indexing BlueprintPoolRecord files by GUID")
     pool_index: dict[str, object] = {}
-    for f in (DATA_ROOT / "crafting" / "blueprintrewards" / "blueprintmissionpools").rglob("*.xml"):
+    for f in (
+        DATA_ROOT / "crafting" / "blueprintrewards" / "blueprintmissionpools"
+    ).rglob("*.xml"):
         m = guid_re.search(f.read_text(encoding="utf-8", errors="replace"))
         if m:
             pool_index[m.group(1).lower()] = f
@@ -101,26 +103,36 @@ def extract_blueprints() -> int:
                     bp_file = bp_index[bp_guid]
                     item_id = bp_file.stem
                     if item_id.lower().startswith("bp_craft_"):
-                        item_id = item_id[len("bp_craft_"):]
+                        item_id = item_id[len("bp_craft_") :]
                     item_name = (
                         localization.get(f"item_Name{item_id}")
                         or localization.get(f"item_Name_{item_id}")
                         or item_id
                     )
-                    rows.append({
-                        "MissionName":   mission_name,
-                        "ItemId":        item_id,
-                        "ItemName":      item_name,
-                        "Weight":        weight,
-                        "Chance":        chance,
-                        "PoolGuid":      pool_guid,
-                        "BlueprintFile": bp_file.name,
-                    })
+                    rows.append(
+                        {
+                            "MissionName": mission_name,
+                            "ItemId": item_id,
+                            "ItemName": item_name,
+                            "Weight": weight,
+                            "Chance": chance,
+                            "PoolGuid": pool_guid,
+                            "BlueprintFile": bp_file.name,
+                        }
+                    )
 
     print(f"      {len(rows)} mission→blueprint mappings found.")
 
     step(f"[5/5] Writing {BLUEPRINT_CSV}")
-    fieldnames = ["MissionName", "ItemId", "ItemName", "Weight", "Chance", "PoolGuid", "BlueprintFile"]
+    fieldnames = [
+        "MissionName",
+        "ItemId",
+        "ItemName",
+        "Weight",
+        "Chance",
+        "PoolGuid",
+        "BlueprintFile",
+    ]
     with open(BLUEPRINT_CSV, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
