@@ -1,14 +1,7 @@
 # Generated files — produced by patch_day.py, not source-controlled
 extract/
 src/global.ini
-output/merged.ini
-ship_components.ini
-mission_blueprints.ini
-unresolved_blueprint_items.md
-blueprint_rewards.csv
-ship_components.csv
-fps_weapons.csv
-ship_armor.csv
+output/*
 
 # Python bytecode
 *.pyc

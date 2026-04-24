@@ -26,6 +26,7 @@ import argparse
 import sc_blueprints as blueprints
 import sc_fps_weapons as fps_weapons
 import sc_localization as localization
+import sc_missiles as missiles
 import sc_missions as missions
 import sc_ship_armor as ship_armor
 import sc_ship_components as ship_components
@@ -36,6 +37,7 @@ from sc_config import (
     GAME_INI,
     GAME_PAK,
     MISSION_BLUEPRINTS_INI,
+    MISSILES_INI,
     OUTPUT_MERGED,
     SHIP_ARMOR_CSV,
     SHIP_COMPONENTS_CSV,
@@ -100,7 +102,7 @@ def main() -> None:
     # Runs before merge so ship_components.ini is ready for the merge step.
     bp_count = csv_count = ini_count = mission_ini_count = unresolved_count = (
         fps_count
-    ) = armor_count = None
+    ) = armor_count = missiles_count = None
     if args.full:
         if args.skip_dcb:
             print("\n>>> Skipping Game2.dcb extraction (--skip-dcb)")
@@ -111,6 +113,7 @@ def main() -> None:
         mission_ini_count, unresolved_count = missions.extract_mission_blueprints()
         fps_count = fps_weapons.extract_fps_weapons()
         armor_count = ship_armor.extract_ship_armor()
+        missiles_count = missiles.extract_missiles()
 
     # --- merge (always runs; picks up ship_components.ini automatically if present) ---
     sub_count, line_count = localization.merge()
@@ -141,6 +144,8 @@ def main() -> None:
         print(f"    FPS Weapons     : {fps_count} rows → {FPS_WEAPONS_CSV}")
     if armor_count is not None:
         print(f"    Ship Armor      : {armor_count} rows → {SHIP_ARMOR_CSV}")
+    if missiles_count is not None:
+        print(f"    Missiles        : {missiles_count} entries → {MISSILES_INI}")
     if args.deploy:
         print(f"    Deployed to     : {GAME_INI}")
     print("\nDone.")

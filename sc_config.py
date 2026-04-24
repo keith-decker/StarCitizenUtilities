@@ -45,6 +45,9 @@ SHIP_COMPONENTS_INI = (
 MISSION_BLUEPRINTS_INI = (
     PROJECT_DIR / "output" / "mission_blueprints.ini"
 )  # generated; fed into the localization merge
+MISSILES_INI = (
+    PROJECT_DIR / "output" / "missiles.ini"
+)  # generated; fed into the localization merge
 UNRESOLVED_ITEMS_MD = (
     PROJECT_DIR / "output" / "unresolved_blueprint_items.md"
 )  # report of items with no display name
