@@ -18,8 +18,8 @@ UNP4K_EXE = UNP4K_DIR / "unp4k.exe"
 UNFORGE_EXE = UNP4K_DIR / "unforge.cli.exe"
 
 # Star Citizen installation
-GAME_PAK = Path(r"G:\RSI\StarCitizen\LIVE\Data.p4k")
-GAME_INI = Path(r"G:\RSI\StarCitizen\LIVE\Data\Localization\english\global.ini")
+GAME_PAK = Path(r"G:\RSI\StarCitizen\PTU\Data.p4k")
+GAME_INI = Path(r"G:\RSI\StarCitizen\PTU\Data\Localization\english\global.ini")
 
 # Project output directory (this repo)
 PROJECT_DIR = Path(r"G:\StarCitizenUtilities")
@@ -51,6 +51,9 @@ MISSILES_INI = (
 UNRESOLVED_ITEMS_MD = (
     PROJECT_DIR / "output" / "unresolved_blueprint_items.md"
 )  # report of items with no display name
+BLUEPRINTS_JSON = (
+    PROJECT_DIR / "output" / "blueprints.json"
+)  # comprehensive blueprint data (fps weapons, armor, ship components)
 
 # Ship component types to include in the extraction
 COMPONENT_TYPES = {"QuantumDrive", "Shield", "PowerPlant", "Cooler", "Radar"}

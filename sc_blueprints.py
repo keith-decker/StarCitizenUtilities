@@ -25,6 +25,10 @@ from sc_config import (
 def extract_dcb() -> None:
     """Extract Game2.dcb from Data.p4k, then unpack its records with unforge."""
     # Step 1: pull Game2.dcb out of Data.p4k (unp4k writes to cwd)
+    dcb_path = EXTRACT_DIR / GAME_DCB_REL
+    if dcb_path.exists():
+        step(f"Removing stale Game2.dcb: {dcb_path}")
+        dcb_path.unlink()
     step("Extracting Game2.dcb from Data.p4k")
     r1 = subprocess.run(
         [str(UNP4K_EXE), str(GAME_PAK), str(GAME_DCB_REL).replace("\\", "/")],
@@ -32,7 +36,6 @@ def extract_dcb() -> None:
     )
     if r1.returncode != 0:
         abort(f"unp4k.exe exited with code {r1.returncode} while extracting Game2.dcb")
-    dcb_path = EXTRACT_DIR / GAME_DCB_REL
     if not dcb_path.exists():
         abort(f"Game2.dcb not found after extraction: {dcb_path}")
 
