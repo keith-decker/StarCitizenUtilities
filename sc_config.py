@@ -22,18 +22,16 @@ import os as _os
 
 _BRANCH = _os.environ.get("SC_BRANCH", "LIVE").upper()
 
-_GAME_PAK_LIVE = Path(r"G:\RSI\StarCitizen\LIVE\Data.p4k")
-_GAME_INI_LIVE = Path(r"G:\RSI\StarCitizen\LIVE\Data\Localization\english\global.ini")
+# Root directories per branch — all derived paths flow from here
+_SC_ROOT_LIVE = Path(r"G:\RSI\StarCitizen\LIVE")
+_SC_ROOT_PTU = Path(r"G:\RSI\StarCitizen\PTU")
 
-_GAME_PAK_PTU = Path(r"G:\RSI\StarCitizen\PTU\Data.p4k")
-_GAME_INI_PTU = Path(r"G:\RSI\StarCitizen\PTU\Data\Localization\english\global.ini")
+_SC_ROOT = _SC_ROOT_PTU if _BRANCH == "PTU" else _SC_ROOT_LIVE
 
-if _BRANCH == "PTU":
-    GAME_PAK = _GAME_PAK_PTU
-    GAME_INI = _GAME_INI_PTU
-else:
-    GAME_PAK = _GAME_PAK_LIVE
-    GAME_INI = _GAME_INI_LIVE
+GAME_PAK = _SC_ROOT / "Data.p4k"
+GAME_INI = _SC_ROOT / "Data" / "Localization" / "english" / "global.ini"
+GAME_LOG = _SC_ROOT / "Game.log"
+GAME_LOG_BACKUPS = _SC_ROOT / "logbackups"
 
 # Project output directory (this repo)
 PROJECT_DIR = Path(r"G:\StarCitizenUtilities")
@@ -70,6 +68,7 @@ BLUEPRINTS_JSON = (
 )  # comprehensive blueprint data (fps weapons, armor, ship components)
 QUALITY_DISTRIBUTIONS_CSV = PROJECT_DIR / "output" / "quality_distributions.csv"
 QUALITY_QUANTIZATION_CSV = PROJECT_DIR / "output" / "quality_quantization.csv"
+BLUEPRINTS_RECEIVED_CSV = PROJECT_DIR / "output" / "blueprints_received.csv"
 
 # Ship component types to include in the extraction
 COMPONENT_TYPES = {"QuantumDrive", "Shield", "PowerPlant", "Cooler", "Radar"}

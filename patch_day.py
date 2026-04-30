@@ -10,6 +10,8 @@ Flags:
   --ptu        Target the PTU installation instead of LIVE (default: LIVE)
   --deploy     Copy merged.ini to the live game folder after merging (any mode)
   --skip-dcb   Skip the unforge Game2.dcb extraction step (use existing records)
+  --hide-owned Scan LIVE game logs and hide already-owned blueprints from mission
+               text (LIVE only; ignored silently when --ptu is set)
 
 Usage:
     python patch_day.py                          # localization merge only (LIVE)
@@ -17,6 +19,7 @@ Usage:
     python patch_day.py --deploy                 # localization merge + deploy to game
     python patch_day.py --full                   # localization + blueprints + ship components
     python patch_day.py --full --ptu             # same, targeting PTU branch
+    python patch_day.py --full --hide-owned      # hide blueprints you already own
     python patch_day.py --full --deploy          # everything + deploy to game
     python patch_day.py --full --skip-dcb        # full extract, reuse existing DCB records
     python patch_day.py --full --skip-dcb --deploy  # same + deploy to game
@@ -43,11 +46,13 @@ import sc_localization as localization
 import sc_mining_quality as mining_quality
 import sc_missiles as missiles
 import sc_missions as missions
+import sc_owned_blueprints as owned_blueprints
 import sc_ship_armor as ship_armor
 import sc_ship_components as ship_components
 from sc_config import (
     BLUEPRINT_CSV,
     BLUEPRINTS_JSON,
+    BLUEPRINTS_RECEIVED_CSV,
     EXTRACT_DIR,
     FPS_WEAPONS_CSV,
     GAME_INI,
@@ -80,6 +85,7 @@ def main() -> None:
             "  python patch_day.py --deploy        localization merge + deploy to game\n"
             "  python patch_day.py --full                localization + blueprints + ship components\n"
             "  python patch_day.py --full --ptu          same, targeting PTU branch\n"
+            "  python patch_day.py --full --hide-owned   hide already-owned blueprints (LIVE only)\n"
             "  python patch_day.py --full --deploy       everything + deploy to game\n"
             "  python patch_day.py --full --skip-dcb     full extract, reuse existing DCB records\n"
         ),
@@ -104,6 +110,12 @@ def main() -> None:
         action="store_true",
         dest="skip_dcb",
         help="Skip unforge Game2.dcb extraction and use existing DataForge records (useful during testing).",
+    )
+    parser.add_argument(
+        "--hide-owned",
+        action="store_true",
+        dest="hide_owned",
+        help="Scan LIVE game logs and hide already-owned blueprints from mission text. Ignored when --ptu is set.",
     )
     args = parser.parse_args()
 
@@ -130,7 +142,19 @@ def main() -> None:
         fps_count
     ) = armor_count = missiles_count = detailed_bp_count = quality_dist_count = (
         quality_quant_count
-    ) = None
+    ) = owned_new = owned_total = None
+
+    # --- scan game logs for owned blueprints (LIVE + --hide-owned only) ---
+    owned_set: frozenset[str] = frozenset()
+    if args.hide_owned:
+        if _BRANCH == "PTU":
+            print(
+                "\n>>> --hide-owned ignored on PTU (blueprints are not persistent on PTU)"
+            )
+        else:
+            owned_new, owned_total = owned_blueprints.scan_and_update_owned()
+            owned_set = owned_blueprints.load_owned_names()
+
     if args.full:
         if args.skip_dcb:
             print("\n>>> Skipping Game2.dcb extraction (--skip-dcb)")
@@ -138,7 +162,9 @@ def main() -> None:
             blueprints.extract_dcb()  # unforge Game2.dcb — shared prerequisite for both CSVs
         bp_count = blueprints.extract_blueprints()
         csv_count, ini_count = ship_components.extract_ship_components()
-        mission_ini_count, unresolved_count = missions.extract_mission_blueprints()
+        mission_ini_count, unresolved_count = missions.extract_mission_blueprints(
+            owned=owned_set
+        )
         fps_count = fps_weapons.extract_fps_weapons()
         armor_count = ship_armor.extract_ship_armor()
         missiles_count = missiles.extract_missiles()
@@ -161,6 +187,10 @@ def main() -> None:
     print(f"    Lines processed : {line_count:,}")
     print(f"    Substitutions   : {sub_count}")
     print(f"    Merged output   : {OUTPUT_MERGED}")
+    if owned_new is not None:
+        print(
+            f"    Owned Blueprints: {owned_total} total ({owned_new} new) → {BLUEPRINTS_RECEIVED_CSV}"
+        )
     if bp_count is not None:
         print(f"    Blueprints      : {bp_count} rows → {BLUEPRINT_CSV}")
     if csv_count is not None:

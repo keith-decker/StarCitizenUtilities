@@ -6,6 +6,7 @@
         "item_ref": true,
         "print('itemRefs:',": true,
         "ForEach-Object": true,
-        "Import-Csv": true
+        "Import-Csv": true,
+        "Test-Path": true
     }
 }

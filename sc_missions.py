@@ -29,7 +29,6 @@ from sc_config import (
     step,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -83,11 +82,16 @@ def _shorten_labels(all_missions: list[str], pool_missions: list[str]) -> list[s
 # ---------------------------------------------------------------------------
 
 
-def extract_mission_blueprints() -> tuple[int, int]:
+def extract_mission_blueprints(owned: frozenset[str] = frozenset()) -> tuple[int, int]:
     """
     Build mission_blueprints.ini and unresolved_blueprint_items.md.
     Returns (ini_entry_count, unique_unresolved_item_count).
     ini_entry_count includes both description and title entries.
+
+    Args:
+        owned: lowercase blueprint display names the player already owns.
+               When non-empty, owned blueprints are omitted from mission text
+               and missions where ALL blueprints are owned are skipped entirely.
     """
     step(
         "[1/4] Building mission → description/title key maps from DataForge contract XMLs"
@@ -153,9 +157,15 @@ def extract_mission_blueprints() -> tuple[int, int]:
         if m in mission_desc_key:
             desc_key_missions[mission_desc_key[m]].append(m)
 
+    # Filter helper: is an item already owned?
+    def _is_owned(item_name: str) -> bool:
+        return bool(owned) and item_name.lower() in owned
+
     step(f"[3/4] Generating {MISSION_BLUEPRINTS_INI.name}")
     entries: list[tuple[str, str]] = []
     unresolved: list[tuple[str, str, str]] = []  # (desc_key, item_id, display_used)
+    # Track which desc keys still have at least one unowned blueprint (for title tagging)
+    desc_keys_with_unowned: set[str] = set()
 
     for desc_key, missions in sorted(desc_key_missions.items()):
         # Skip if this description key has no entry in global.ini
@@ -172,17 +182,34 @@ def extract_mission_blueprints() -> tuple[int, int]:
         all_sorted = sorted(missions)
 
         bp_section = r"\n\n<EM4>Potential Blueprints</EM4>"
+        any_unowned_in_entry = False
 
         for pool, pool_missions in pool_groups.items():
+            pool_items = items_for_mission(pool_missions[0])
+            # When hiding owned, skip pools where every blueprint is already owned
+            unowned_items = [(n, i) for n, i in pool_items if not _is_owned(n)]
+            if owned and not unowned_items:
+                continue  # entire pool already owned — skip this pool group
+
+            items_to_show = unowned_items if owned else pool_items
+            any_unowned_in_entry = True
+
             if multiple_pools:
                 labels = _shorten_labels(all_sorted, sorted(pool_missions))
                 bp_section += r"\n<EM4>[" + ", ".join(labels) + r"]</EM4>"
 
-            for item_name, item_id in items_for_mission(pool_missions[0]):
+            for item_name, item_id in items_to_show:
                 is_unresolved = item_name == item_id
                 if is_unresolved:
                     unresolved.append((desc_key, item_id, item_name))
                 bp_section += r"\n- " + item_name
+
+        # If every pool was fully owned, skip this desc key entirely
+        if owned and not any_unowned_in_entry:
+            continue
+
+        if any_unowned_in_entry:
+            desc_keys_with_unowned.add(desc_key)
 
         bp_section += r"\n"
         entries.append((desc_key, orig + bp_section))
@@ -191,10 +218,16 @@ def extract_mission_blueprints() -> tuple[int, int]:
 
     # ------------------------------------------------------------------
     # Title entries — append " [BP]" to titles of missions with blueprints
+    # When --hide-owned is active, only tag titles for missions that still
+    # have at least one unowned blueprint.
     # ------------------------------------------------------------------
     title_keys_with_bp: set[str] = set()
     for m in bp_missions:
-        if m in mission_desc_key and mission_desc_key[m] in desc_key_missions:
+        dk = mission_desc_key.get(m)
+        if dk and dk in desc_key_missions:
+            # If owned filtering is active, only tag if the desc key had unowned items
+            if owned and dk not in desc_keys_with_unowned:
+                continue
             tk = mission_title_key.get(m)
             if tk:
                 title_keys_with_bp.add(tk)
