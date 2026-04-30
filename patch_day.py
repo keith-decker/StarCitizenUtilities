@@ -7,13 +7,16 @@ Modes:
   --full     Full extract — localization + blueprint rewards CSV + ship components CSV
 
 Flags:
+  --ptu        Target the PTU installation instead of LIVE (default: LIVE)
   --deploy     Copy merged.ini to the live game folder after merging (any mode)
   --skip-dcb   Skip the unforge Game2.dcb extraction step (use existing records)
 
 Usage:
-    python patch_day.py                          # localization merge only
+    python patch_day.py                          # localization merge only (LIVE)
+    python patch_day.py --ptu                    # localization merge only (PTU)
     python patch_day.py --deploy                 # localization merge + deploy to game
     python patch_day.py --full                   # localization + blueprints + ship components
+    python patch_day.py --full --ptu             # same, targeting PTU branch
     python patch_day.py --full --deploy          # everything + deploy to game
     python patch_day.py --full --skip-dcb        # full extract, reuse existing DCB records
     python patch_day.py --full --skip-dcb --deploy  # same + deploy to game
@@ -21,12 +24,23 @@ Usage:
 All paths are configured in sc_config.py.
 """
 
+# --ptu must be detected before sc_config is imported so the env var is set
+# in time for sc_config’s module-level branch selection.
+import os
+import sys
+
+if "--ptu" in sys.argv:
+    os.environ["SC_BRANCH"] = "PTU"
+else:
+    os.environ.setdefault("SC_BRANCH", "LIVE")
+
 import argparse
 
 import sc_blueprints as blueprints
 import sc_blueprints_detailed as blueprints_detailed
 import sc_fps_weapons as fps_weapons
 import sc_localization as localization
+import sc_mining_quality as mining_quality
 import sc_missiles as missiles
 import sc_missions as missions
 import sc_ship_armor as ship_armor
@@ -41,6 +55,8 @@ from sc_config import (
     MISSION_BLUEPRINTS_INI,
     MISSILES_INI,
     OUTPUT_MERGED,
+    QUALITY_DISTRIBUTIONS_CSV,
+    QUALITY_QUANTIZATION_CSV,
     SHIP_ARMOR_CSV,
     SHIP_COMPONENTS_CSV,
     SHIP_COMPONENTS_INI,
@@ -48,6 +64,7 @@ from sc_config import (
     UNFORGE_EXE,
     UNRESOLVED_ITEMS_MD,
     UNP4K_EXE,
+    _BRANCH,
     abort,
 )
 
@@ -58,12 +75,19 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "examples:\n"
-            "  python patch_day.py                 localization merge only\n"
+            "  python patch_day.py                 localization merge only (LIVE)\n"
+            "  python patch_day.py --ptu           localization merge only (PTU)\n"
             "  python patch_day.py --deploy        localization merge + deploy to game\n"
             "  python patch_day.py --full                localization + blueprints + ship components\n"
+            "  python patch_day.py --full --ptu          same, targeting PTU branch\n"
             "  python patch_day.py --full --deploy       everything + deploy to game\n"
             "  python patch_day.py --full --skip-dcb     full extract, reuse existing DCB records\n"
         ),
+    )
+    parser.add_argument(
+        "--ptu",
+        action="store_true",
+        help="Target the PTU installation instead of LIVE (default: LIVE).",
     )
     parser.add_argument(
         "--full",
@@ -104,7 +128,9 @@ def main() -> None:
     # Runs before merge so ship_components.ini is ready for the merge step.
     bp_count = csv_count = ini_count = mission_ini_count = unresolved_count = (
         fps_count
-    ) = armor_count = missiles_count = detailed_bp_count = None
+    ) = armor_count = missiles_count = detailed_bp_count = quality_dist_count = (
+        quality_quant_count
+    ) = None
     if args.full:
         if args.skip_dcb:
             print("\n>>> Skipping Game2.dcb extraction (--skip-dcb)")
@@ -117,6 +143,9 @@ def main() -> None:
         armor_count = ship_armor.extract_ship_armor()
         missiles_count = missiles.extract_missiles()
         detailed_bp_count = blueprints_detailed.extract_all_blueprints()
+        quality_dist_count, quality_quant_count = (
+            mining_quality.extract_mining_quality()
+        )
 
     # --- merge (always runs; picks up ship_components.ini automatically if present) ---
     sub_count, line_count = localization.merge()
@@ -128,6 +157,7 @@ def main() -> None:
     # --- summary ---
     print()
     print("--- Summary ---")
+    print(f"    Branch          : {_BRANCH}")
     print(f"    Lines processed : {line_count:,}")
     print(f"    Substitutions   : {sub_count}")
     print(f"    Merged output   : {OUTPUT_MERGED}")
@@ -151,6 +181,14 @@ def main() -> None:
         print(f"    Missiles        : {missiles_count} entries → {MISSILES_INI}")
     if detailed_bp_count is not None:
         print(f"    All Blueprints  : {detailed_bp_count} items → {BLUEPRINTS_JSON}")
+    if quality_dist_count is not None:
+        print(
+            f"    Quality Dists   : {quality_dist_count} rows → {QUALITY_DISTRIBUTIONS_CSV}"
+        )
+    if quality_quant_count is not None:
+        print(
+            f"    Quality Quant   : {quality_quant_count} materials → {QUALITY_QUANTIZATION_CSV}"
+        )
     if args.deploy:
         print(f"    Deployed to     : {GAME_INI}")
     print("\nDone.")

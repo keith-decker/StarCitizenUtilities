@@ -103,9 +103,7 @@ def extract_blueprints() -> int:
 
     step("[2/5] Indexing BlueprintPoolRecord files by GUID")
     pool_index: dict[str, object] = {}
-    for f in (
-        DATA_ROOT / "crafting" / "blueprintrewards" / "blueprintmissionpools"
-    ).rglob("*.xml"):
+    for f in (DATA_ROOT / "crafting" / "blueprintrewards").rglob("*.xml"):
         m = guid_re.search(f.read_text(encoding="utf-8", errors="replace"))
         if m:
             pool_index[m.group(1).lower()] = f

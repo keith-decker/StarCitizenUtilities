@@ -17,9 +17,23 @@ UNP4K_DIR = Path(r"G:\un4pk")
 UNP4K_EXE = UNP4K_DIR / "unp4k.exe"
 UNFORGE_EXE = UNP4K_DIR / "unforge.cli.exe"
 
-# Star Citizen installation
-GAME_PAK = Path(r"G:\RSI\StarCitizen\PTU\Data.p4k")
-GAME_INI = Path(r"G:\RSI\StarCitizen\PTU\Data\Localization\english\global.ini")
+# Star Citizen installation — branch selected by SC_BRANCH env var ("LIVE" or "PTU")
+import os as _os
+
+_BRANCH = _os.environ.get("SC_BRANCH", "LIVE").upper()
+
+_GAME_PAK_LIVE = Path(r"G:\RSI\StarCitizen\LIVE\Data.p4k")
+_GAME_INI_LIVE = Path(r"G:\RSI\StarCitizen\LIVE\Data\Localization\english\global.ini")
+
+_GAME_PAK_PTU = Path(r"G:\RSI\StarCitizen\PTU\Data.p4k")
+_GAME_INI_PTU = Path(r"G:\RSI\StarCitizen\PTU\Data\Localization\english\global.ini")
+
+if _BRANCH == "PTU":
+    GAME_PAK = _GAME_PAK_PTU
+    GAME_INI = _GAME_INI_PTU
+else:
+    GAME_PAK = _GAME_PAK_LIVE
+    GAME_INI = _GAME_INI_LIVE
 
 # Project output directory (this repo)
 PROJECT_DIR = Path(r"G:\StarCitizenUtilities")
@@ -54,6 +68,8 @@ UNRESOLVED_ITEMS_MD = (
 BLUEPRINTS_JSON = (
     PROJECT_DIR / "output" / "blueprints.json"
 )  # comprehensive blueprint data (fps weapons, armor, ship components)
+QUALITY_DISTRIBUTIONS_CSV = PROJECT_DIR / "output" / "quality_distributions.csv"
+QUALITY_QUANTIZATION_CSV = PROJECT_DIR / "output" / "quality_quantization.csv"
 
 # Ship component types to include in the extraction
 COMPONENT_TYPES = {"QuantumDrive", "Shield", "PowerPlant", "Cooler", "Radar"}
