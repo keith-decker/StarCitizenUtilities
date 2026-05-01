@@ -19,6 +19,7 @@ Output: BLUEPRINTS_RECEIVED_CSV  (Timestamp, Blueprint, LogFile)
 
 import csv
 import re
+from datetime import datetime
 from pathlib import Path
 
 from sc_config import (
@@ -51,10 +52,24 @@ def _scan_log(path: Path) -> list[tuple[str, str]]:
     return results
 
 
+def _get_newest_timestamp() -> str | None:
+    """Return the newest (latest) timestamp from BLUEPRINTS_RECEIVED_CSV, or None if empty."""
+    if not BLUEPRINTS_RECEIVED_CSV.exists():
+        return None
+    newest = None
+    with open(BLUEPRINTS_RECEIVED_CSV, encoding="utf-8", newline="") as f:
+        for row in csv.DictReader(f):
+            ts = row["Timestamp"]
+            if newest is None or ts > newest:
+                newest = ts
+    return newest
+
+
 def scan_and_update_owned() -> tuple[int, int]:
     """
-    Scan all LIVE game logs, merge new entries into BLUEPRINTS_RECEIVED_CSV.
-    Existing rows are kept; new rows are appended (de-duplicated by timestamp+name).
+    Scan LIVE game logs newer than the most recent owned blueprint, merge new entries
+    into BLUEPRINTS_RECEIVED_CSV. Existing rows are kept; new rows are appended
+    (de-duplicated by timestamp+name).
 
     Returns (new_entries_added, total_owned_blueprints).
     """
@@ -68,6 +83,7 @@ def scan_and_update_owned() -> tuple[int, int]:
                 existing[(row["Timestamp"], row["Blueprint"])] = row["LogFile"]
 
     prior_count = len(existing)
+    newest_timestamp = _get_newest_timestamp()
 
     # Gather all log files to scan, oldest first
     log_files: list[Path] = []
@@ -76,7 +92,19 @@ def scan_and_update_owned() -> tuple[int, int]:
     if GAME_LOG.exists():
         log_files.append(GAME_LOG)
 
-    print(f"      {len(log_files)} log files found.")
+    # Filter log files: only scan those modified after the newest known blueprint
+    if newest_timestamp:
+        cutoff_dt = datetime.fromisoformat(newest_timestamp.replace("Z", "+00:00"))
+        filtered_files = [
+            f for f in log_files
+            if datetime.fromtimestamp(f.stat().st_mtime, tz=cutoff_dt.tzinfo)
+            > cutoff_dt
+        ]
+        skipped = len(log_files) - len(filtered_files)
+        print(f"      {len(log_files)} log files found, {skipped} skipped (before {newest_timestamp}).")
+        log_files = filtered_files
+    else:
+        print(f"      {len(log_files)} log files found.")
 
     for log_path in log_files:
         for ts, name in _scan_log(log_path):
