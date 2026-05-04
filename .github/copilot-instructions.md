@@ -1,3 +1,19 @@
+---
+toolRestrictions:
+  - toolName: "create_file"
+    applyTo: ["output/**"]
+    allowed: true
+  - toolName: "replace_string_in_file"
+    applyTo: ["output/**"]
+    allowed: true
+  - toolName: "multi_replace_string_in_file"
+    applyTo: ["output/**"]
+    allowed: true
+  - toolName: "edit_notebook_file"
+    applyTo: ["output/**"]
+    allowed: true
+---
+
 # StarCitizenUtilities — Agent Instructions
 
 ## Project Overview
@@ -87,7 +103,7 @@ All records share this structure:
 - `harvestable/providerpresets/system/stanton/` — per-location spawn tables (planets + asteroid fields)
 - `harvestable/providerpresets/system/pyro/` — Pyro system locations
 - `harvestable/providerpresets/system/nyx/` — Nyx system asteroid belts
-- `harvestable/harvestablepresets/` — harvestable preset library (mining*\*, fpsmining*_, groundvehiclemining\__)
+- `harvestable/harvestablepresets/` — harvestable preset library (mining*\*, fpsmining*\_, groundvehiclemining\_\_)
 - `harvestable/clusteringpresets/` — asteroid cluster density configs
 
 ### Economy / Cargo
