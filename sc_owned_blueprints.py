@@ -96,12 +96,15 @@ def scan_and_update_owned() -> tuple[int, int]:
     if newest_timestamp:
         cutoff_dt = datetime.fromisoformat(newest_timestamp.replace("Z", "+00:00"))
         filtered_files = [
-            f for f in log_files
+            f
+            for f in log_files
             if datetime.fromtimestamp(f.stat().st_mtime, tz=cutoff_dt.tzinfo)
             > cutoff_dt
         ]
         skipped = len(log_files) - len(filtered_files)
-        print(f"      {len(log_files)} log files found, {skipped} skipped (before {newest_timestamp}).")
+        print(
+            f"      {len(log_files)} log files found, {skipped} skipped (before {newest_timestamp})."
+        )
         log_files = filtered_files
     else:
         print(f"      {len(log_files)} log files found.")

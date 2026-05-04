@@ -156,12 +156,18 @@ def _extract_materials(
     # Find ALL CraftingCost_Select elements recursively
     all_selects = recipe_elem.findall(".//CraftingCost_Select")
 
-    for cost_select in all_selects:
-        # Check if this select has a direct CraftingCost_Resource child (not nested in options)
-        resource_elem = cost_select.find("options/CraftingCost_Resource")
-        if resource_elem is None:
-            continue
+    # Map of known item GUIDs to material names (FPS harvestable minerals)
+    ITEM_MATERIAL_MAP = {
+        "0b83f4b2-1d15-4843-aa94-29f2b40a5cbe": "Caranite",   # harvestable_mineral_1h_carinite
+        "125dd723-95ad-488d-830f-62c954445ca1": "Hadanite",    # harvestable_mineral_1h_hadanite
+        "20094ded-ad04-46a3-b734-9e37aa3154b3": "Dolivine",    # harvestable_mineral_1h_dolivine
+        "38d7d7e9-819b-4351-a40e-7b764cb304e6": "Beradom",     # harvestable_mineral_1h_beradom
+        "3f137385-dd8f-410b-b5f3-7b4d283c09cd": "Aphorite",   # harvestable_mineral_1h_aphorite
+        "51b456cd-e73e-42a8-b36e-0bf6fbe29ce6": "Sadaryx",    # harvestable_mineral_1h_sadaryx
+        "e954d75e-fb1e-487e-90a8-170f0284b502": "Janalite",   # harvestable_mineral_1h_janalite
+    }
 
+    for cost_select in all_selects:
         # Get the display name from nameInfo
         name_info = cost_select.find("nameInfo")
         slot_name = ""
@@ -171,39 +177,65 @@ def _extract_materials(
             slot_name = name_info.get("debugName", "")
             slot_display_key = name_info.get("displayName", "")
 
-        resource_guid = resource_elem.get("resource", "")
-        min_quality = resource_elem.get("minQuality", "0")
+        # Try CraftingCost_Resource first
+        resource_elem = cost_select.find("options/CraftingCost_Resource")
+        if resource_elem is not None:
+            resource_guid = resource_elem.get("resource", "")
+            min_quality = resource_elem.get("minQuality", "0")
 
-        # Get quantity
-        qty_elem = resource_elem.find("quantity/SStandardCargoUnit")
-        if qty_elem is not None:
-            quantity = float(qty_elem.get("standardCargoUnits", 0))
+            # Get quantity
+            qty_elem = resource_elem.find("quantity/SStandardCargoUnit")
+            if qty_elem is not None:
+                quantity = float(qty_elem.get("standardCargoUnits", 0))
+            else:
+                quantity = 0
+
+            # Look up resource name from mapping or use slot name
+            resource_name = resource_map.get(resource_guid.lower(), "")
+            if not resource_name:
+                resource_name = slot_name
+
+            # Try to resolve display name from localization
+            if slot_display_key and loc_map:
+                display_name = loc_map.get(slot_display_key.lower(), "")
+                if display_name:
+                    resource_name = display_name
+
+            # Look up material name (ore type) from GUID mapping
+            material_name = MATERIAL_NAME_MAP.get(resource_guid.lower(), "")
+
+            materials.append(
+                {
+                    "resource_guid": resource_guid,
+                    "resource_name": resource_name,
+                    "material_name": material_name,
+                    "quantity_scu": quantity,
+                    "min_quality": int(min_quality),
+                }
+            )
         else:
-            quantity = 0
+            # Try CraftingCost_Item (for items like Caranite)
+            item_elem = cost_select.find("options/CraftingCost_Item")
+            if item_elem is not None:
+                item_class = item_elem.get("entityClass", "")
+                quantity = float(item_elem.get("quantity", 1))
+                min_quality = item_elem.get("minQuality", "0")
 
-        # Look up resource name from mapping or use slot name
-        resource_name = resource_map.get(resource_guid.lower(), "")
-        if not resource_name:
-            resource_name = slot_name
+                # Look up material name from item GUID
+                material_name = ITEM_MATERIAL_MAP.get(item_class, "")
+                if not material_name:
+                    # If not found, use slot name as fallback
+                    material_name = slot_name
 
-        # Try to resolve display name from localization
-        if slot_display_key and loc_map:
-            display_name = loc_map.get(slot_display_key.lower(), "")
-            if display_name:
-                resource_name = display_name
-
-        # Look up material name (ore type) from GUID mapping
-        material_name = MATERIAL_NAME_MAP.get(resource_guid.lower(), "")
-
-        materials.append(
-            {
-                "resource_guid": resource_guid,
-                "resource_name": resource_name,
-                "material_name": material_name,
-                "quantity_scu": quantity,
-                "min_quality": int(min_quality),
-            }
-        )
+                materials.append(
+                    {
+                        "resource_guid": item_class,
+                        "resource_name": slot_name,
+                        "material_name": material_name,
+                        "quantity_scu": quantity,  # quantity for items, not SCU
+                        "min_quality": int(min_quality),
+                    }
+                )
 
     return materials
 
