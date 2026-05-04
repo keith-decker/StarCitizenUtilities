@@ -26,6 +26,9 @@ Columns:
     DmgStun         stun damage per pellet
     DmgPerShot      total damage per shot (sum of all damage types * pellets)
     DPS             damage per second (DmgPerShot * FireRate / 60)
+    RecoilKick      vertical kick magnitude per shot (abs yMaxValue from positionCurves)
+    RecoilSmoothness recoil decay rate (how quickly recoil recovers)
+    RecoilHandling  end decay rate (sustained fire recovery)
 """
 
 import csv
@@ -129,7 +132,17 @@ def extract_fps_weapons() -> int:
         if m:
             ammo_index[m.group(1).lower()] = f
 
-    print(f"      {len(mag_index)} magazines, {len(ammo_index)} ammoparams indexed.")
+    # weaponproceduralrecoil GUID → recoil config file path
+    recoil_dir = DATA_ROOT / "weaponproceduralrecoil"
+    recoil_index: dict[str, Path] = {}
+    if recoil_dir.exists():
+        for f in recoil_dir.rglob("*.xml"):
+            txt = f.read_text(encoding="utf-8", errors="replace")
+            m = guid_re.search(txt)
+            if m:
+                recoil_index[m.group(1).lower()] = f
+
+    print(f"      {len(mag_index)} magazines, {len(ammo_index)} ammoparams, {len(recoil_index)} recoil configs indexed.")
 
     # ---- 3. Parse ammoparams ------------------------------------------
     def _parse_ammo(ammo_guid: str) -> dict:
@@ -259,6 +272,26 @@ def extract_fps_weapons() -> int:
             fire_rate = float(fa.get("fireRate", 0))
             burst_shots = int(fa.get("burstShots", 1) or 1)
 
+            # Recoil parameters — resolved via GUID to weaponproceduralrecoil record
+            # fa has recoil="<guid>" pointing to a WeaponProceduralRecoilConfigDef
+            recoil_kick = 0.0
+            recoil_smoothness = 0.0
+            recoil_handling = 0.0
+            recoil_guid = (fa.get("recoil") or "").lower()
+            if recoil_guid and recoil_guid in recoil_index:
+                try:
+                    rroot = ET.parse(recoil_index[recoil_guid]).getroot()
+                    # weaponProceduralHandsRecoil: yMaxValue = vertical kick per shot
+                    for hands_el in rroot.iter("weaponProceduralHandsRecoil"):
+                        recoil_smoothness = float(hands_el.get("decay", 0) or 0)
+                        recoil_handling = float(hands_el.get("endDecay", 0) or 0)
+                        for pc in hands_el.iter("positionCurves"):
+                            recoil_kick = abs(float(pc.get("yMaxValue", 0) or 0))
+                            break
+                        break
+                except ET.ParseError:
+                    pass
+
             # pelletCount and ammoCost live in child <launchParams>/<SProjectileLauncher>
             pellet_count = 1
             ammo_cost = 1
@@ -308,6 +341,9 @@ def extract_fps_weapons() -> int:
                     "DmgStun": dmg_stun,
                     "DmgPerShot": dmg_per_shot,
                     "DPS": dps,
+                    "RecoilKick": round(recoil_kick, 4),
+                    "RecoilSmoothness": round(recoil_smoothness, 4),
+                    "RecoilHandling": round(recoil_handling, 4),
                 }
             )
 
@@ -337,6 +373,9 @@ def extract_fps_weapons() -> int:
         "DmgStun",
         "DmgPerShot",
         "DPS",
+        "RecoilKick",
+        "RecoilSmoothness",
+        "RecoilHandling",
     ]
     with open(FPS_WEAPONS_CSV, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)

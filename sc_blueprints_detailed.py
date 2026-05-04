@@ -10,6 +10,7 @@ Categories:
 Output structure organized by category for easy filtering and querying.
 """
 
+import csv
 import json
 import re
 import xml.etree.ElementTree as ET
@@ -20,6 +21,8 @@ from sc_config import (
     DATA_ROOT,
     BLUEPRINTS_JSON,
     EXTRACTED_INI,
+    FPS_WEAPONS_CSV,
+    BLUEPRINT_CSV,
     step,
 )
 from sc_resource_mapping import get_resource_mapping
@@ -240,8 +243,101 @@ def _extract_materials(
     return materials
 
 
+def _load_weapon_display_names(fps_weapons_csv: Path) -> dict[str, str]:
+    """
+    Load FPS weapon display names from fps_weapons.csv.
+    Returns a mapping of WeaponId → WeaponName (uses first occurrence).
+    """
+    display_names = {}
+    if not fps_weapons_csv.exists():
+        return display_names
+    
+    try:
+        with open(fps_weapons_csv, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                weapon_id = row.get("WeaponId", "").strip()
+                weapon_name = row.get("WeaponName", "").strip()
+                if weapon_id and weapon_name and weapon_id not in display_names:
+                    display_names[weapon_id] = weapon_name
+    except (FileNotFoundError, IOError):
+        pass
+    
+    return display_names
+
+
+def _get_weapon_display_name(item_id: str, display_names: dict[str, str]) -> str:
+    """
+    Get display name for a weapon, with fallback to base weapon for variants.
+    Tries exact match first, then strips common variant suffixes to find base weapon.
+    """
+    # Try exact match first
+    if item_id in display_names:
+        return display_names[item_id]
+    
+    # Common variant suffixes to strip off
+    variant_suffixes = [
+        "_firerats01", "_firerats02", "_firerats03",
+        "_collector01", "_collector02",
+        "_arctic01", "_arctic02",
+        "_black01", "_black02", "_black03",
+        "_blue01", "_blue02", "_blue_gold", "_blue_white01", "_blue_white02",
+        "_gold01", "_gold02",
+        "_green01", "_green02", "_green_grey01",
+        "_grey_red01", "_green_grey01",
+        "_white01", "_white02", "_white03",
+        "_tan01", "_tan02",
+        "_imp01", "_imp02",
+        "_pink_red01", "_pink_cian01", "_pink_cian02",
+        "_red_black01", "_red_white01",
+        "_tint01", "_tint02",
+        "_urban01", "_urban02",
+        "_engraved01", "_engraved02",
+        "_digi01", "_digi02",
+        "_spc", "_cc17", "_cc17a", "_cc17b",
+        "_headhunters01",
+        "_reward01", "_reward02",
+        "_300", "_default",
+        "_ai", "_ai_default",
+        "_uee01", "_uee02",
+    ]
+    
+    # Try stripping each variant suffix and looking up the base weapon
+    for suffix in variant_suffixes:
+        if item_id.lower().endswith(suffix):
+            base_id = item_id[:-len(suffix)]
+            if base_id in display_names:
+                return display_names[base_id]
+    
+    # If no match found, return the item_id
+    return item_id
+
+
+def _load_mission_available_items(blueprint_csv: Path) -> set[str]:
+    """
+    Load item IDs that are available via missions from blueprint_rewards.csv.
+    Returns a set of item IDs that can be obtained through mission rewards.
+    """
+    mission_items = set()
+    if not blueprint_csv.exists():
+        return mission_items
+    
+    try:
+        with open(blueprint_csv, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                item_id = row.get("ItemId", "").strip()
+                if item_id:
+                    mission_items.add(item_id)
+    except (FileNotFoundError, IOError):
+        pass
+    
+    return mission_items
+
+
 def _extract_blueprint_data(
-    blueprint_file: Path, resource_map: dict[str, str], loc_map: dict[str, str]
+    blueprint_file: Path, resource_map: dict[str, str], loc_map: dict[str, str],
+    display_names: dict[str, str], mission_items: set[str]
 ) -> dict:
     """Extract all relevant data from a blueprint XML file."""
     try:
@@ -283,9 +379,11 @@ def _extract_blueprint_data(
 
     return {
         "item_id": item_id,
+        "display_name": _get_weapon_display_name(item_id, display_names),
         "blueprint_guid": blueprint_guid,
         "blueprint_file": blueprint_file.name,
         "category": category,
+        "available_via_mission": item_id in mission_items,
         "tiers": tiers,
     }
 
@@ -302,7 +400,7 @@ def extract_all_blueprints() -> int:
     step("[1/5] Building resource GUID → name mapping")
     resource_map = get_resource_mapping()
 
-    step("[2/5] Loading localization strings")
+    step("[2/5] Loading localization strings and weapon display names")
     loc_map: dict[str, str] = {}
     try:
         with open(EXTRACTED_INI, encoding="utf-8", errors="replace") as f:
@@ -313,6 +411,12 @@ def extract_all_blueprints() -> int:
     except (FileNotFoundError, IOError):
         pass
     print(f"      {len(loc_map)} localization strings loaded.")
+    
+    display_names = _load_weapon_display_names(FPS_WEAPONS_CSV)
+    print(f"      {len(display_names)} weapon display names loaded.")
+    
+    mission_items = _load_mission_available_items(BLUEPRINT_CSV)
+    print(f"      {len(mission_items)} mission-available items loaded.")
 
     step("[3/5] Scanning blueprint files")
     blueprint_files = list(blueprint_dir.rglob("*.xml"))
@@ -328,7 +432,7 @@ def extract_all_blueprints() -> int:
     }
 
     for bp_file in blueprint_files:
-        data = _extract_blueprint_data(bp_file, resource_map, loc_map)
+        data = _extract_blueprint_data(bp_file, resource_map, loc_map, display_names, mission_items)
         if data:
             category = data["category"]
             blueprints_by_category[category].append(data)
