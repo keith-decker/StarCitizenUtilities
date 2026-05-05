@@ -21,12 +21,10 @@ from sc_config import (
     DATA_ROOT,
     BLUEPRINTS_JSON,
     EXTRACTED_INI,
-    FPS_WEAPONS_CSV,
     BLUEPRINT_CSV,
     step,
 )
 from sc_resource_mapping import get_resource_mapping
-
 
 # Material GUID → specific ore name mapping
 # Discovered by scanning commodity filenames (e.g., commodity_metal_iron, commodity_mineral_hephaestanite)
@@ -161,13 +159,13 @@ def _extract_materials(
 
     # Map of known item GUIDs to material names (FPS harvestable minerals)
     ITEM_MATERIAL_MAP = {
-        "0b83f4b2-1d15-4843-aa94-29f2b40a5cbe": "Caranite",   # harvestable_mineral_1h_carinite
-        "125dd723-95ad-488d-830f-62c954445ca1": "Hadanite",    # harvestable_mineral_1h_hadanite
-        "20094ded-ad04-46a3-b734-9e37aa3154b3": "Dolivine",    # harvestable_mineral_1h_dolivine
-        "38d7d7e9-819b-4351-a40e-7b764cb304e6": "Beradom",     # harvestable_mineral_1h_beradom
-        "3f137385-dd8f-410b-b5f3-7b4d283c09cd": "Aphorite",   # harvestable_mineral_1h_aphorite
-        "51b456cd-e73e-42a8-b36e-0bf6fbe29ce6": "Sadaryx",    # harvestable_mineral_1h_sadaryx
-        "e954d75e-fb1e-487e-90a8-170f0284b502": "Janalite",   # harvestable_mineral_1h_janalite
+        "0b83f4b2-1d15-4843-aa94-29f2b40a5cbe": "Caranite",  # harvestable_mineral_1h_carinite
+        "125dd723-95ad-488d-830f-62c954445ca1": "Hadanite",  # harvestable_mineral_1h_hadanite
+        "20094ded-ad04-46a3-b734-9e37aa3154b3": "Dolivine",  # harvestable_mineral_1h_dolivine
+        "38d7d7e9-819b-4351-a40e-7b764cb304e6": "Beradom",  # harvestable_mineral_1h_beradom
+        "3f137385-dd8f-410b-b5f3-7b4d283c09cd": "Aphorite",  # harvestable_mineral_1h_aphorite
+        "51b456cd-e73e-42a8-b36e-0bf6fbe29ce6": "Sadaryx",  # harvestable_mineral_1h_sadaryx
+        "e954d75e-fb1e-487e-90a8-170f0284b502": "Janalite",  # harvestable_mineral_1h_janalite
     }
 
     for cost_select in all_selects:
@@ -243,73 +241,168 @@ def _extract_materials(
     return materials
 
 
-def _load_weapon_display_names(fps_weapons_csv: Path) -> dict[str, str]:
+def _load_entity_display_names(loc_map: dict[str, str]) -> dict[str, str]:
     """
-    Load FPS weapon display names from fps_weapons.csv.
-    Returns a mapping of WeaponId → WeaponName (uses first occurrence).
+    Build a comprehensive item_id → display_name mapping by scanning entity XML files.
+
+    Covers:
+      - FPS weapons (all variants, all manufacturers, ballistic + energy)
+      - FPS weapon magazines / ammo
+      - FPS armor (all manufacturers, all weight classes)
+
+    Uses <Localization Name="@KEY"> in each entity XML, resolved via loc_map.
+    Falls back to empty string if no valid localization found.
     """
-    display_names = {}
-    if not fps_weapons_csv.exists():
-        return display_names
-    
-    try:
-        with open(fps_weapons_csv, "r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                weapon_id = row.get("WeaponId", "").strip()
-                weapon_name = row.get("WeaponName", "").strip()
-                if weapon_id and weapon_name and weapon_id not in display_names:
-                    display_names[weapon_id] = weapon_name
-    except (FileNotFoundError, IOError):
-        pass
-    
+    display_names: dict[str, str] = {}
+
+    entity_dirs = [
+        # All FPS weapon variants (incl. energy, tints, collector editions)
+        DATA_ROOT / "entities" / "scitem" / "weapons" / "fps_weapons",
+        # Magazine / ammo entities
+        DATA_ROOT / "entities" / "scitem" / "weapons" / "magazines",
+        # FPS armor body pieces (CDS, QRT, KAP, etc.) — nested by weight/slot
+        DATA_ROOT / "entities" / "scitem" / "characters" / "human" / "armor",
+        # FPS helmets — separate subtree
+        DATA_ROOT
+        / "entities"
+        / "scitem"
+        / "characters"
+        / "human"
+        / "starwear"
+        / "helmet",
+    ]
+
+    loc_re = re.compile(r'<Localization\b[^>]*\bName="@([^"]+)"', re.IGNORECASE)
+
+    for base_dir in entity_dirs:
+        if not base_dir.exists():
+            continue
+        for xml_file in base_dir.rglob("*.xml"):
+            item_id = xml_file.stem
+            if item_id in display_names:
+                continue
+            try:
+                text = xml_file.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            m = loc_re.search(text)
+            if not m:
+                continue
+            loc_key = m.group(1).lower()
+            name = loc_map.get(loc_key, "")
+            if name and name not in (
+                "@LOC_PLACEHOLDER",
+                "@LOC_UNINITIALIZED",
+                "@LOC_EMPTY",
+            ):
+                display_names[item_id] = name
+
+    # Supplemental fallback: scan loc_map for item_name_* keys to fill any gaps
+    # left by missing entity XML files. Handles both plain and ",p" suffix variants.
+    for key, value in loc_map.items():
+        if not key.startswith("item_name_"):
+            continue
+        item_id = key[len("item_name_") :]
+        if item_id.endswith(",p"):
+            item_id = item_id[:-2]
+        if (
+            item_id
+            and item_id not in display_names
+            and value
+            and not value.startswith("@LOC_")
+        ):
+            display_names[item_id] = value
+
     return display_names
 
 
-def _get_weapon_display_name(item_id: str, display_names: dict[str, str]) -> str:
+def _get_display_name(item_id: str, display_names: dict[str, str]) -> str:
     """
-    Get display name for a weapon, with fallback to base weapon for variants.
-    Tries exact match first, then strips common variant suffixes to find base weapon.
+    Get display name for any item. Tries exact match first, then strips common
+    cosmetic variant suffixes to inherit the base item's display name.
+    Returns item_id unchanged if nothing found.
     """
-    # Try exact match first
     if item_id in display_names:
         return display_names[item_id]
-    
-    # Common variant suffixes to strip off
-    variant_suffixes = [
-        "_firerats01", "_firerats02", "_firerats03",
-        "_collector01", "_collector02",
-        "_arctic01", "_arctic02",
-        "_black01", "_black02", "_black03",
-        "_blue01", "_blue02", "_blue_gold", "_blue_white01", "_blue_white02",
-        "_gold01", "_gold02",
-        "_green01", "_green02", "_green_grey01",
-        "_grey_red01", "_green_grey01",
-        "_white01", "_white02", "_white03",
-        "_tan01", "_tan02",
-        "_imp01", "_imp02",
-        "_pink_red01", "_pink_cian01", "_pink_cian02",
-        "_red_black01", "_red_white01",
-        "_tint01", "_tint02",
-        "_urban01", "_urban02",
-        "_engraved01", "_engraved02",
-        "_digi01", "_digi02",
-        "_spc", "_cc17", "_cc17a", "_cc17b",
-        "_headhunters01",
-        "_reward01", "_reward02",
-        "_300", "_default",
-        "_ai", "_ai_default",
-        "_uee01", "_uee02",
-    ]
-    
-    # Try stripping each variant suffix and looking up the base weapon
+
+    # Sorted longest-first so multi-word suffixes match before shorter ones
+    variant_suffixes = sorted(
+        [
+            "_firerats01",
+            "_firerats02",
+            "_firerats03",
+            "_collector01",
+            "_collector02",
+            "_arctic01",
+            "_arctic02",
+            "_black01",
+            "_black02",
+            "_black03",
+            "_blue01",
+            "_blue02",
+            "_blue_gold",
+            "_blue_white01",
+            "_blue_white02",
+            "_gold01",
+            "_gold02",
+            "_green01",
+            "_green02",
+            "_green_grey01",
+            "_grey_red01",
+            "_white01",
+            "_white02",
+            "_white03",
+            "_tan01",
+            "_tan02",
+            "_imp01",
+            "_imp02",
+            "_pink_red01",
+            "_pink_cian01",
+            "_pink_cian02",
+            "_red_black01",
+            "_red_white01",
+            "_tint01",
+            "_tint02",
+            "_tint03",
+            "_tint04",
+            "_urban01",
+            "_urban02",
+            "_engraved01",
+            "_engraved02",
+            "_digi01",
+            "_digi02",
+            "_spc",
+            "_cc17",
+            "_cc17a",
+            "_cc17b",
+            "_headhunters01",
+            "_reward01",
+            "_reward02",
+            "_300",
+            "_default",
+            "_ai",
+            "_ai_default",
+            "_uee01",
+            "_uee02",
+        ],
+        key=len,
+        reverse=True,
+    )
+
+    item_lower = item_id.lower()
     for suffix in variant_suffixes:
-        if item_id.lower().endswith(suffix):
-            base_id = item_id[:-len(suffix)]
+        if item_lower.endswith(suffix):
+            base_id = item_id[: -len(suffix)]
             if base_id in display_names:
                 return display_names[base_id]
-    
-    # If no match found, return the item_id
+            # Allow one more level of stripping (e.g. tint on top of civilian variant)
+            base_lower = base_id.lower()
+            for suffix2 in variant_suffixes:
+                if base_lower.endswith(suffix2):
+                    base2 = base_id[: -len(suffix2)]
+                    if base2 in display_names:
+                        return display_names[base2]
+
     return item_id
 
 
@@ -321,7 +414,7 @@ def _load_mission_available_items(blueprint_csv: Path) -> set[str]:
     mission_items = set()
     if not blueprint_csv.exists():
         return mission_items
-    
+
     try:
         with open(blueprint_csv, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
@@ -331,13 +424,16 @@ def _load_mission_available_items(blueprint_csv: Path) -> set[str]:
                     mission_items.add(item_id)
     except (FileNotFoundError, IOError):
         pass
-    
+
     return mission_items
 
 
 def _extract_blueprint_data(
-    blueprint_file: Path, resource_map: dict[str, str], loc_map: dict[str, str],
-    display_names: dict[str, str], mission_items: set[str]
+    blueprint_file: Path,
+    resource_map: dict[str, str],
+    loc_map: dict[str, str],
+    display_names: dict[str, str],
+    mission_items: set[str],
 ) -> dict:
     """Extract all relevant data from a blueprint XML file."""
     try:
@@ -377,15 +473,29 @@ def _extract_blueprint_data(
             }
         )
 
-    return {
+    # Infer armor weight class from item_id token
+    armor_class: str | None = None
+    if category == "fps_armor":
+        item_lower = item_id.lower()
+        if "_light_" in item_lower:
+            armor_class = "light"
+        elif "_medium_" in item_lower:
+            armor_class = "medium"
+        elif "_heavy_" in item_lower:
+            armor_class = "heavy"
+
+    result = {
         "item_id": item_id,
-        "display_name": _get_weapon_display_name(item_id, display_names),
+        "display_name": _get_display_name(item_id, display_names),
         "blueprint_guid": blueprint_guid,
         "blueprint_file": blueprint_file.name,
         "category": category,
         "available_via_mission": item_id in mission_items,
         "tiers": tiers,
     }
+    if armor_class is not None:
+        result["armor_class"] = armor_class
+    return result
 
 
 def extract_all_blueprints() -> int:
@@ -411,10 +521,10 @@ def extract_all_blueprints() -> int:
     except (FileNotFoundError, IOError):
         pass
     print(f"      {len(loc_map)} localization strings loaded.")
-    
-    display_names = _load_weapon_display_names(FPS_WEAPONS_CSV)
-    print(f"      {len(display_names)} weapon display names loaded.")
-    
+
+    display_names = _load_entity_display_names(loc_map)
+    print(f"      {len(display_names)} entity display names loaded.")
+
     mission_items = _load_mission_available_items(BLUEPRINT_CSV)
     print(f"      {len(mission_items)} mission-available items loaded.")
 
@@ -432,7 +542,9 @@ def extract_all_blueprints() -> int:
     }
 
     for bp_file in blueprint_files:
-        data = _extract_blueprint_data(bp_file, resource_map, loc_map, display_names, mission_items)
+        data = _extract_blueprint_data(
+            bp_file, resource_map, loc_map, display_names, mission_items
+        )
         if data:
             category = data["category"]
             blueprints_by_category[category].append(data)

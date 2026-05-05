@@ -142,7 +142,9 @@ def extract_fps_weapons() -> int:
             if m:
                 recoil_index[m.group(1).lower()] = f
 
-    print(f"      {len(mag_index)} magazines, {len(ammo_index)} ammoparams, {len(recoil_index)} recoil configs indexed.")
+    print(
+        f"      {len(mag_index)} magazines, {len(ammo_index)} ammoparams, {len(recoil_index)} recoil configs indexed."
+    )
 
     # ---- 3. Parse ammoparams ------------------------------------------
     def _parse_ammo(ammo_guid: str) -> dict:
