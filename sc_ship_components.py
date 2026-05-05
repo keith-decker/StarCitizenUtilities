@@ -1,18 +1,17 @@
 """
 Ship components submodule — extract component metadata (Type, Size, Grade,
-Manufacturer, Name, Class) from DataForge records and write ship_components.csv.
+Manufacturer, Name, Class) from DataForge records and write ship_components.ini
+for localization overrides.
 
 Prerequisite: unforge.exe must have already been run to unpack Game2.dcb.
 """
 
-import csv
 import re
 
 from sc_config import (
     COMPONENT_TYPES,
     DATA_ROOT,
     EXTRACTED_INI,
-    SHIP_COMPONENTS_CSV,
     SHIP_COMPONENTS_INI,
     SRC_GLOBAL_INI,
     step,
@@ -163,19 +162,20 @@ def _load_manufacturers(loc: dict[str, str]) -> dict[str, str]:
 
 def extract_ship_components() -> int:
     """
-    Scan DataForge ship entity XML files and write ship_components.csv.
+    Scan DataForge ship entity XML files and generate ship_components.ini
+    for localization overrides. Skips CSV output.
     Only component types listed in COMPONENT_TYPES (sc_config.py) are included.
-    Returns the number of rows written.
+    Returns the number of INI entries written.
     """
-    step("[1/4] Loading localization strings for ship component name resolution")
+    step("[1/3] Loading localization strings for ship component name resolution")
     loc = _load_localization()
     print(f"      {len(loc):,} strings loaded.")
 
-    step("[2/4] Indexing manufacturer GUIDs")
+    step("[2/3] Indexing manufacturer GUIDs")
     mfgr_index = _load_manufacturers(loc)
     print(f"      {len(mfgr_index)} manufacturers indexed.")
 
-    step("[3/4] Scanning ship component entity files")
+    step("[3/3] Scanning ship component entity files")
     xml_files = list(SCITEM_ROOT.rglob("*.xml"))
     print(f"      {len(xml_files)} XML files found.")
 
@@ -215,22 +215,6 @@ def extract_ship_components() -> int:
 
     print(f"      {len(rows)} components extracted.")
 
-    step(f"[4/5] Writing {SHIP_COMPONENTS_CSV}")
-    fieldnames = [
-        "EntityClass",
-        "Name",
-        "Type",
-        "SubType",
-        "Size",
-        "Grade",
-        "Class",
-        "Manufacturer",
-    ]
-    with open(SHIP_COMPONENTS_CSV, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
-
-    step(f"[5/5] Generating localization overrides")
+    step("Generating localization overrides")
     ini_count = build_components_ini(rows)
-    return len(rows), ini_count
+    return ini_count

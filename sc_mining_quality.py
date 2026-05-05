@@ -5,11 +5,12 @@ data from DataForge records.
 Outputs:
   quality_distributions.csv  — per-tier (and per-location override) normal
                                 distribution params used to roll raw quality (0-1000)
-  quality_quantization.csv   — per-material 8-band quantization mapping that
-                                converts raw quality to one of 8 discrete values
+  quality_quantization.csv   — per-material 8-band quantization mapping (legacy CSV format)
+  quality_quantization.json  — per-material 8-band quantization mapping (for API consumption)
 """
 
 import csv
+import json
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from sc_config import (
     DATA_ROOT,
     QUALITY_DISTRIBUTIONS_CSV,
     QUALITY_QUANTIZATION_CSV,
+    QUALITY_QUANTIZATION_JSON,
     step,
 )
 
@@ -169,6 +171,71 @@ def extract_quality_quantization() -> int:
 
     print(f"      {len(rows)} materials written → {QUALITY_QUANTIZATION_CSV}")
     return len(rows)
+
+
+def export_quality_quantization_json() -> int:
+    """
+    Parse all CraftingQualityQuantizationRecord files and export to quality_quantization.json
+    in the format: { "materials": { "material_name": { "bands": [...] } } }
+    Returns the number of materials exported.
+    """
+    step("Exporting quality quantization to JSON")
+
+    materials_data: dict = {}
+
+    for xml_file in sorted(QUAL_QUANT_DIR.glob("*.xml")):
+        material = xml_file.stem.removeprefix("quantization_")  # e.g. "iron"
+        if material == "template":
+            continue  # skip the template record
+
+        root = ET.parse(xml_file).getroot()
+        bands_data = []
+
+        for band in root.findall(".//CraftingQualityQuantizationBand"):
+            input_min = int(band.get("start", 0))
+            input_max = int(band.get("end", 0))
+            output_value = int(band.get("mappedValue", 0))
+
+            # Determine label based on output value ranges
+            if output_value < 400:
+                label = "Low"
+            elif output_value < 600:
+                label = "Below Average"
+            elif output_value < 700:
+                label = "Average"
+            elif output_value < 800:
+                label = "Good"
+            elif output_value < 900:
+                label = "High"
+            elif output_value < 950:
+                label = "Very High"
+            elif output_value < 999:
+                label = "Exceptional"
+            else:
+                label = "Perfect"
+
+            bands_data.append(
+                {
+                    "input_min": input_min,
+                    "input_max": input_max,
+                    "output_value": output_value,
+                    "label": label,
+                }
+            )
+
+        if bands_data:
+            materials_data[material.lower()] = {"bands": bands_data}
+
+    output = {"materials": materials_data}
+
+    QUALITY_QUANTIZATION_JSON.parent.mkdir(parents=True, exist_ok=True)
+    with open(QUALITY_QUANTIZATION_JSON, "w", encoding="utf-8") as f:
+        json.dump(output, f, indent=2, ensure_ascii=False)
+
+    print(
+        f"      {len(materials_data)} materials written → {QUALITY_QUANTIZATION_JSON}"
+    )
+    return len(materials_data)
 
 
 def extract_mining_quality() -> tuple[int, int]:

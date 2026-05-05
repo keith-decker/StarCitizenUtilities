@@ -66,6 +66,9 @@ UNRESOLVED_ITEMS_MD = (
 BLUEPRINTS_JSON = (
     PROJECT_DIR / "output" / "blueprints.json"
 )  # comprehensive blueprint data (fps weapons, armor, ship components)
+QUALITY_QUANTIZATION_JSON = (
+    PROJECT_DIR / "output" / "quality_quantization.json"
+)  # per-material 8-band quantization data
 QUALITY_DISTRIBUTIONS_CSV = PROJECT_DIR / "output" / "quality_distributions.csv"
 QUALITY_QUANTIZATION_CSV = PROJECT_DIR / "output" / "quality_quantization.csv"
 BLUEPRINTS_RECEIVED_CSV = PROJECT_DIR / "output" / "blueprints_received.csv"

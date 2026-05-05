@@ -54,10 +54,10 @@ def extract_dcb() -> None:
         abort(f"unforge.exe exited with code {r2.returncode}")
 
 
-def extract_blueprints() -> int:
+def extract_blueprints() -> list[dict]:
     """
-    Walk DataForge records to build blueprint_rewards.csv.
-    Returns the number of rows written.
+    Walk DataForge records to extract blueprint reward mappings.
+    Returns list of dicts: [{"MissionName": ..., "ItemId": ..., ...}, ...]
     """
     guid_re = re.compile(
         r'__ref="([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"',
@@ -166,19 +166,4 @@ def extract_blueprints() -> int:
 
     print(f"      {len(rows)} mission→blueprint mappings found.")
 
-    step(f"[5/5] Writing {BLUEPRINT_CSV}")
-    fieldnames = [
-        "MissionName",
-        "ItemId",
-        "ItemName",
-        "Weight",
-        "Chance",
-        "PoolGuid",
-        "BlueprintFile",
-    ]
-    with open(BLUEPRINT_CSV, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
-
-    return len(rows)
+    return rows

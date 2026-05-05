@@ -82,13 +82,18 @@ def _shorten_labels(all_missions: list[str], pool_missions: list[str]) -> list[s
 # ---------------------------------------------------------------------------
 
 
-def extract_mission_blueprints(owned: frozenset[str] = frozenset()) -> tuple[int, int]:
+def extract_mission_blueprints(
+    blueprint_rewards: list[dict] = None, owned: frozenset[str] = frozenset()
+) -> tuple[int, int]:
     """
     Build mission_blueprints.ini and unresolved_blueprint_items.md.
     Returns (ini_entry_count, unique_unresolved_item_count).
     ini_entry_count includes both description and title entries.
 
     Args:
+        blueprint_rewards: List of dicts from sc_blueprints.extract_blueprints()
+                         with keys: MissionName, ItemId, ItemName, Chance, etc.
+                         If None, loads from BLUEPRINT_CSV for backward compatibility.
         owned: lowercase blueprint display names the player already owns.
                When non-empty, owned blueprints are omitted from mission text
                and missions where ALL blueprints are owned are skipped entirely.
@@ -120,10 +125,14 @@ def extract_mission_blueprints(owned: frozenset[str] = frozenset()) -> tuple[int
         f"      {len(mission_desc_key)} desc / {len(mission_title_key)} title mappings found."
     )
 
-    step("[2/4] Loading blueprint rewards CSV and localization strings")
+    step("[2/4] Loading blueprint rewards and localization strings")
     bp_rows: list[dict] = []
-    with open(BLUEPRINT_CSV, encoding="utf-8") as f:
-        bp_rows = list(csv.DictReader(f))
+    if blueprint_rewards is not None:
+        bp_rows = blueprint_rewards
+    else:
+        # Backward compatibility: load from CSV if not provided
+        with open(BLUEPRINT_CSV, encoding="utf-8") as f:
+            bp_rows = list(csv.DictReader(f))
 
     loc: dict[str, str] = {}
     with open(SRC_GLOBAL_INI, encoding="utf-8", errors="replace") as f:

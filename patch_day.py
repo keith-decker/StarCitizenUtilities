@@ -4,7 +4,8 @@ SC Patch Day — Star Citizen patch-day extraction and merge orchestrator.
 
 Modes:
   (default)  Localization only — extract global.ini, apply overrides, write merged.ini
-  --full     Full extract — localization + blueprint rewards CSV + ship components CSV
+  --full     Full extract — localization + blueprints + weapons + quality data + localization INIs
+  --crafting Crafting data only — blueprints.json, fps_weapons.csv, quality_quantization.json (no localization merge)
 
 Flags:
   --ptu        Target the PTU installation instead of LIVE (default: LIVE)
@@ -17,7 +18,8 @@ Usage:
     python patch_day.py                          # localization merge only (LIVE)
     python patch_day.py --ptu                    # localization merge only (PTU)
     python patch_day.py --deploy                 # localization merge + deploy to game
-    python patch_day.py --full                   # localization + blueprints + ship components
+    python patch_day.py --full                   # localization + all crafting data exports
+    python patch_day.py --crafting               # crafting data only (no localization merge)
     python patch_day.py --full --ptu             # same, targeting PTU branch
     python patch_day.py --full --hide-owned      # hide blueprints you already own
     python patch_day.py --full --deploy          # everything + deploy to game
@@ -60,10 +62,7 @@ from sc_config import (
     MISSION_BLUEPRINTS_INI,
     MISSILES_INI,
     OUTPUT_MERGED,
-    QUALITY_DISTRIBUTIONS_CSV,
-    QUALITY_QUANTIZATION_CSV,
-    SHIP_ARMOR_CSV,
-    SHIP_COMPONENTS_CSV,
+    QUALITY_QUANTIZATION_JSON,
     SHIP_COMPONENTS_INI,
     TARGET_STRINGS,
     UNFORGE_EXE,
@@ -101,6 +100,11 @@ def main() -> None:
         help="Also extract blueprint_rewards.csv and ship_components.csv from DataForge records.",
     )
     parser.add_argument(
+        "--crafting",
+        action="store_true",
+        help="Extract crafting data only (blueprints.json, fps_weapons.csv, quality_quantization.json) without localization merge.",
+    )
+    parser.add_argument(
         "--deploy",
         action="store_true",
         help="Copy merged.ini to the live game folder after merging.",
@@ -126,26 +130,24 @@ def main() -> None:
         abort(f"Data.p4k not found: {GAME_PAK}")
     if not TARGET_STRINGS.exists():
         abort(f"target_strings.ini not found: {TARGET_STRINGS}")
-    if args.full and not UNFORGE_EXE.exists():
+    if (args.full or args.crafting) and not UNFORGE_EXE.exists():
         abort(f"unforge.exe not found: {UNFORGE_EXE}")
+
+    # --crafting implies no localization merge
+    do_localization = not args.crafting
+    do_crafting = args.full or args.crafting
 
     # --- prepare extract directory ---
     EXTRACT_DIR.mkdir(parents=True, exist_ok=True)
 
-    # --- extract pak (always runs) ---
-    localization.extract_pak()
-    localization.copy_to_src()
-
-    # --- full extract pipeline (--full only) ---
-    # Runs before merge so ship_components.ini is ready for the merge step.
-    bp_count = csv_count = ini_count = mission_ini_count = unresolved_count = (
-        fps_count
-    ) = armor_count = missiles_count = detailed_bp_count = quality_dist_count = (
-        quality_quant_count
-    ) = owned_new = owned_total = None
+    # --- extract pak (runs for localization or if crafting data needed) ---
+    if do_localization:
+        localization.extract_pak()
+        localization.copy_to_src()
 
     # --- scan game logs for owned blueprints (LIVE + --hide-owned only) ---
     owned_set: frozenset[str] = frozenset()
+    owned_new = owned_total = None
     if args.hide_owned:
         if _BRANCH == "PTU":
             print(
@@ -155,71 +157,103 @@ def main() -> None:
             owned_new, owned_total = owned_blueprints.scan_and_update_owned()
             owned_set = owned_blueprints.load_owned_names()
 
-    if args.full:
-        if args.skip_dcb:
-            print("\n>>> Skipping Game2.dcb extraction (--skip-dcb)")
-        else:
-            blueprints.extract_dcb()  # unforge Game2.dcb — shared prerequisite for both CSVs
-        bp_count = blueprints.extract_blueprints()
-        csv_count, ini_count = ship_components.extract_ship_components()
-        mission_ini_count, unresolved_count = missions.extract_mission_blueprints(
-            owned=owned_set
-        )
-        fps_count = fps_weapons.extract_fps_weapons()
-        armor_count = ship_armor.extract_ship_armor()
+    # --- GROUP A: Localization (default + --full) ---
+    sub_count = line_count = ini_count = mission_ini_count = unresolved_count = (
+        missiles_count
+    ) = None
+
+    if do_localization:
+        # Extract DCB and build blueprint/component data (needed for mission descriptions)
+        blueprint_rewards = None
+        if do_crafting or args.hide_owned:
+            if args.skip_dcb:
+                print("\n>>> Skipping Game2.dcb extraction (--skip-dcb)")
+            else:
+                blueprints.extract_dcb()
+            blueprint_rewards = blueprints.extract_blueprints()
+
+        # Extract ship components INI
+        ini_count = ship_components.extract_ship_components()
+
+        # Extract missiles INI
         missiles_count = missiles.extract_missiles()
-        detailed_bp_count = blueprints_detailed.extract_all_blueprints()
-        quality_dist_count, quality_quant_count = (
-            mining_quality.extract_mining_quality()
+
+        # Generate mission blueprints INI (depends on blueprint data)
+        mission_ini_count, unresolved_count = missions.extract_mission_blueprints(
+            blueprint_rewards=blueprint_rewards, owned=owned_set
         )
 
-    # --- merge (always runs; picks up ship_components.ini automatically if present) ---
-    sub_count, line_count = localization.merge()
+        # Merge localization INIs into merged.ini
+        sub_count, line_count = localization.merge()
 
-    # --- deploy (--deploy only) ---
-    if args.deploy:
-        localization.deploy()
+        # Deploy if requested
+        if args.deploy:
+            localization.deploy()
+
+    # --- GROUP B: Crafting Tracker Data (--full or --crafting) ---
+    bp_count = fps_count = detailed_bp_count = quality_quant_count = None
+
+    if do_crafting:
+        # Extract DCB if not already done in GROUP A
+        if not do_localization:
+            if args.skip_dcb:
+                print("\n>>> Skipping Game2.dcb extraction (--skip-dcb)")
+            else:
+                blueprints.extract_dcb()
+
+        # Extract blueprint reward mappings (in-memory only)
+        blueprint_rewards = blueprints.extract_blueprints()
+        bp_count = len(blueprint_rewards)
+
+        # Extract FPS weapons data
+        fps_count = fps_weapons.extract_fps_weapons()
+
+        # Extract blueprints with embedded mission sources
+        detailed_bp_count = blueprints_detailed.extract_all_blueprints(
+            blueprint_rewards=blueprint_rewards
+        )
+
+        # Export quality quantization as JSON
+        quality_quant_count = mining_quality.export_quality_quantization_json()
 
     # --- summary ---
     print()
     print("--- Summary ---")
     print(f"    Branch          : {_BRANCH}")
-    print(f"    Lines processed : {line_count:,}")
-    print(f"    Substitutions   : {sub_count}")
-    print(f"    Merged output   : {OUTPUT_MERGED}")
+    if do_localization:
+        print(f"    Lines processed : {line_count:,}")
+        print(f"    Substitutions   : {sub_count}")
+        print(f"    Merged output   : {OUTPUT_MERGED}")
+        if ini_count is not None:
+            print(f"    Component INI   : {ini_count} entries → {SHIP_COMPONENTS_INI}")
+        if mission_ini_count is not None:
+            print(
+                f"    Mission INI     : {mission_ini_count} entries → {MISSION_BLUEPRINTS_INI}"
+            )
+        if unresolved_count is not None:
+            print(
+                f"    Unresolved      : {unresolved_count} items → {UNRESOLVED_ITEMS_MD}"
+            )
+        if missiles_count is not None:
+            print(f"    Missiles INI    : {missiles_count} entries → {MISSILES_INI}")
     if owned_new is not None:
         print(
             f"    Owned Blueprints: {owned_total} total ({owned_new} new) → {BLUEPRINTS_RECEIVED_CSV}"
         )
-    if bp_count is not None:
-        print(f"    Blueprints      : {bp_count} rows → {BLUEPRINT_CSV}")
-    if csv_count is not None:
-        print(f"    Component CSV   : {csv_count} rows → {SHIP_COMPONENTS_CSV}")
-    if ini_count is not None:
-        print(f"    Component INI   : {ini_count} entries → {SHIP_COMPONENTS_INI}")
-    if mission_ini_count is not None:
-        print(
-            f"    Mission INI     : {mission_ini_count} entries → {MISSION_BLUEPRINTS_INI}"
-        )
-    if unresolved_count is not None:
-        print(f"    Unresolved      : {unresolved_count} items → {UNRESOLVED_ITEMS_MD}")
-    if fps_count is not None:
-        print(f"    FPS Weapons     : {fps_count} rows → {FPS_WEAPONS_CSV}")
-    if armor_count is not None:
-        print(f"    Ship Armor      : {armor_count} rows → {SHIP_ARMOR_CSV}")
-    if missiles_count is not None:
-        print(f"    Missiles        : {missiles_count} entries → {MISSILES_INI}")
-    if detailed_bp_count is not None:
-        print(f"    All Blueprints  : {detailed_bp_count} items → {BLUEPRINTS_JSON}")
-    if quality_dist_count is not None:
-        print(
-            f"    Quality Dists   : {quality_dist_count} rows → {QUALITY_DISTRIBUTIONS_CSV}"
-        )
-    if quality_quant_count is not None:
-        print(
-            f"    Quality Quant   : {quality_quant_count} materials → {QUALITY_QUANTIZATION_CSV}"
-        )
-    if args.deploy:
+    if do_crafting:
+        if bp_count is not None:
+            print(f"    Blueprints      : {bp_count} mission reward mappings")
+        if fps_count is not None:
+            print(f"    FPS Weapons     : {fps_count} rows → {FPS_WEAPONS_CSV}")
+        if detailed_bp_count is not None:
+            print(
+                f"    All Blueprints  : {detailed_bp_count} items → {BLUEPRINTS_JSON}"
+            )
+        if quality_quant_count is not None:
+            print(
+                f"    Quality Bands   : {quality_quant_count} materials → {QUALITY_QUANTIZATION_JSON}"
+            )
+    if args.deploy and do_localization:
         print(f"    Deployed to     : {GAME_INI}")
     print("\nDone.")
 

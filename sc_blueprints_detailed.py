@@ -21,7 +21,6 @@ from sc_config import (
     DATA_ROOT,
     BLUEPRINTS_JSON,
     EXTRACTED_INI,
-    BLUEPRINT_CSV,
     step,
 )
 from sc_resource_mapping import get_resource_mapping
@@ -406,34 +405,12 @@ def _get_display_name(item_id: str, display_names: dict[str, str]) -> str:
     return item_id
 
 
-def _load_mission_available_items(blueprint_csv: Path) -> set[str]:
-    """
-    Load item IDs that are available via missions from blueprint_rewards.csv.
-    Returns a set of item IDs that can be obtained through mission rewards.
-    """
-    mission_items = set()
-    if not blueprint_csv.exists():
-        return mission_items
-
-    try:
-        with open(blueprint_csv, "r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                item_id = row.get("ItemId", "").strip()
-                if item_id:
-                    mission_items.add(item_id)
-    except (FileNotFoundError, IOError):
-        pass
-
-    return mission_items
-
-
 def _extract_blueprint_data(
     blueprint_file: Path,
     resource_map: dict[str, str],
     loc_map: dict[str, str],
     display_names: dict[str, str],
-    mission_items: set[str],
+    mission_sources: list[dict],
 ) -> dict:
     """Extract all relevant data from a blueprint XML file."""
     try:
@@ -473,6 +450,9 @@ def _extract_blueprint_data(
             }
         )
 
+    # Filter mission sources for this item
+    item_missions = [m for m in mission_sources if m["ItemId"] == item_id]
+
     # Infer armor weight class from item_id token
     armor_class: str | None = None
     if category == "fps_armor":
@@ -490,7 +470,10 @@ def _extract_blueprint_data(
         "blueprint_guid": blueprint_guid,
         "blueprint_file": blueprint_file.name,
         "category": category,
-        "available_via_mission": item_id in mission_items,
+        "mission_sources": [
+            {"mission_name": m["MissionName"], "chance": float(m.get("Chance", 0))}
+            for m in item_missions
+        ],
         "tiers": tiers,
     }
     if armor_class is not None:
@@ -498,11 +481,20 @@ def _extract_blueprint_data(
     return result
 
 
-def extract_all_blueprints() -> int:
+def extract_all_blueprints(blueprint_rewards: list[dict] = None) -> int:
     """
     Walk all blueprint files and extract comprehensive data.
+
+    Args:
+        blueprint_rewards: List of dicts from sc_blueprints.extract_blueprints()
+                         with keys: MissionName, ItemId, ItemName, Chance, etc.
+                         If None, mission_sources will be empty for all blueprints.
+
     Returns the number of blueprints extracted.
     """
+    if blueprint_rewards is None:
+        blueprint_rewards = []
+
     blueprint_dir = DATA_ROOT / "crafting" / "blueprints"
     if not blueprint_dir.exists():
         return 0
@@ -525,52 +517,26 @@ def extract_all_blueprints() -> int:
     display_names = _load_entity_display_names(loc_map)
     print(f"      {len(display_names)} entity display names loaded.")
 
-    mission_items = _load_mission_available_items(BLUEPRINT_CSV)
-    print(f"      {len(mission_items)} mission-available items loaded.")
-
     step("[3/5] Scanning blueprint files")
     blueprint_files = list(blueprint_dir.rglob("*.xml"))
     print(f"      {len(blueprint_files)} blueprint files found.")
 
     step("[4/5] Extracting blueprint data")
-    blueprints_by_category = {
-        "fps_weapons": [],
-        "fps_weapons_ammo": [],
-        "fps_armor": [],
-        "ship_components": [],
-        "other": [],
-    }
+    blueprints: list[dict] = []
 
     for bp_file in blueprint_files:
         data = _extract_blueprint_data(
-            bp_file, resource_map, loc_map, display_names, mission_items
+            bp_file, resource_map, loc_map, display_names, blueprint_rewards
         )
         if data:
-            category = data["category"]
-            blueprints_by_category[category].append(data)
+            blueprints.append(data)
 
-    print(f"      FPS Weapons: {len(blueprints_by_category['fps_weapons'])}")
-    print(f"      FPS Ammo: {len(blueprints_by_category['fps_weapons_ammo'])}")
-    print(f"      FPS Armor: {len(blueprints_by_category['fps_armor'])}")
-    print(f"      Ship Components: {len(blueprints_by_category['ship_components'])}")
-    print(f"      Other: {len(blueprints_by_category['other'])}")
-
-    # Sort each category by item_id for consistency
-    for category in blueprints_by_category:
-        blueprints_by_category[category].sort(key=lambda x: x["item_id"])
+    # Sort by item_id for consistency
+    blueprints.sort(key=lambda x: x["item_id"])
 
     step(f"[5/5] Writing {BLUEPRINTS_JSON}")
 
-    output = {
-        "metadata": {
-            "extract_date": datetime.utcnow().isoformat(),
-            "total_blueprints": sum(len(v) for v in blueprints_by_category.values()),
-            "categories": {k: len(v) for k, v in blueprints_by_category.items()},
-        },
-        "blueprints": blueprints_by_category,
-    }
-
     with open(BLUEPRINTS_JSON, "w", encoding="utf-8") as f:
-        json.dump(output, f, indent=2, ensure_ascii=False)
+        json.dump(blueprints, f, indent=2, ensure_ascii=False)
 
-    return output["metadata"]["total_blueprints"]
+    return len(blueprints)
