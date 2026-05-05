@@ -6,3 +6,9 @@ output/*
 # Python bytecode
 *.pyc
 __pycache__/
+
+# Research & analysis scripts (personal reference, not part of pipeline)
+ARMOR_QUALITY_BONUSES.md
+GUN_QUALITY_BONUSES.md
+analyze_quality_bonuses.py
+extract_fps_weapons.py

@@ -38,40 +38,41 @@ PROJECT_DIR = Path(r"G:\StarCitizenUtilities")
 SRC_GLOBAL_INI = PROJECT_DIR / "src" / "global.ini"
 TARGET_STRINGS = PROJECT_DIR / "target_strings.ini"
 
-# Local extraction workspace — unp4k/unforge write here; wiped before each --full run
-EXTRACT_DIR = PROJECT_DIR / "extract"
+# Local extraction workspace — branch-scoped so PTU/LIVE records don't overwrite each other
+EXTRACT_DIR = PROJECT_DIR / "extract" / _BRANCH.lower()
 EXTRACT_REL_PATH = "Data/Localization/english/global.ini"
 EXTRACTED_INI = EXTRACT_DIR / "Data" / "Localization" / "english" / "global.ini"
 GAME_DCB_REL = (
     Path("Data") / "Game2.dcb"
 )  # relative path used as arg; cwd=EXTRACT_DIR at runtime
 DATA_ROOT = EXTRACT_DIR / "Data" / "Libs" / "Foundry" / "Records"
-OUTPUT_MERGED = PROJECT_DIR / "output" / "merged.ini"
-BLUEPRINT_CSV = PROJECT_DIR / "output" / "blueprint_rewards.csv"
-SHIP_COMPONENTS_CSV = PROJECT_DIR / "output" / "ship_components.csv"
-FPS_WEAPONS_CSV = PROJECT_DIR / "output" / "fps_weapons.csv"
-SHIP_ARMOR_CSV = PROJECT_DIR / "output" / "ship_armor.csv"
+
+# Output directory — branch-scoped so PTU/LIVE outputs don't overwrite each other
+OUTPUT_DIR = PROJECT_DIR / "output" / _BRANCH.lower()
+OUTPUT_MERGED = OUTPUT_DIR / "merged.ini"
+BLUEPRINT_CSV = OUTPUT_DIR / "blueprint_rewards.csv"
+SHIP_COMPONENTS_CSV = OUTPUT_DIR / "ship_components.csv"
+FPS_WEAPONS_CSV = OUTPUT_DIR / "fps_weapons.csv"
+SHIP_ARMOR_CSV = OUTPUT_DIR / "ship_armor.csv"
 SHIP_COMPONENTS_INI = (
-    PROJECT_DIR / "output" / "ship_components.ini"
+    OUTPUT_DIR / "ship_components.ini"
 )  # generated; fed into the localization merge
 MISSION_BLUEPRINTS_INI = (
-    PROJECT_DIR / "output" / "mission_blueprints.ini"
+    OUTPUT_DIR / "mission_blueprints.ini"
 )  # generated; fed into the localization merge
-MISSILES_INI = (
-    PROJECT_DIR / "output" / "missiles.ini"
-)  # generated; fed into the localization merge
+MISSILES_INI = OUTPUT_DIR / "missiles.ini"  # generated; fed into the localization merge
 UNRESOLVED_ITEMS_MD = (
-    PROJECT_DIR / "output" / "unresolved_blueprint_items.md"
+    OUTPUT_DIR / "unresolved_blueprint_items.md"
 )  # report of items with no display name
 BLUEPRINTS_JSON = (
-    PROJECT_DIR / "output" / "blueprints.json"
+    OUTPUT_DIR / "blueprints.json"
 )  # comprehensive blueprint data (fps weapons, armor, ship components)
 QUALITY_QUANTIZATION_JSON = (
-    PROJECT_DIR / "output" / "quality_quantization.json"
+    OUTPUT_DIR / "quality_quantization.json"
 )  # per-material 8-band quantization data
-QUALITY_DISTRIBUTIONS_CSV = PROJECT_DIR / "output" / "quality_distributions.csv"
-QUALITY_QUANTIZATION_CSV = PROJECT_DIR / "output" / "quality_quantization.csv"
-BLUEPRINTS_RECEIVED_CSV = PROJECT_DIR / "output" / "blueprints_received.csv"
+QUALITY_DISTRIBUTIONS_CSV = OUTPUT_DIR / "quality_distributions.csv"
+QUALITY_QUANTIZATION_CSV = OUTPUT_DIR / "quality_quantization.csv"
+BLUEPRINTS_RECEIVED_CSV = OUTPUT_DIR / "blueprints_received.csv"
 
 # Ship component types to include in the extraction
 COMPONENT_TYPES = {"QuantumDrive", "Shield", "PowerPlant", "Cooler", "Radar"}

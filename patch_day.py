@@ -61,6 +61,7 @@ from sc_config import (
     GAME_PAK,
     MISSION_BLUEPRINTS_INI,
     MISSILES_INI,
+    OUTPUT_DIR,
     OUTPUT_MERGED,
     QUALITY_QUANTIZATION_JSON,
     SHIP_COMPONENTS_INI,
@@ -137,8 +138,9 @@ def main() -> None:
     do_localization = not args.crafting
     do_crafting = args.full or args.crafting
 
-    # --- prepare extract directory ---
+    # --- prepare extract and output directories ---
     EXTRACT_DIR.mkdir(parents=True, exist_ok=True)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     # --- extract pak (runs for localization or if crafting data needed) ---
     if do_localization:
