@@ -1,8 +1,16 @@
 ---
 toolRestrictions:
   - toolName: "create_file"
-    applyTo: ["output/**"]
+    applyTo: ["output/**", "notes/**"]
     allowed: true
+  - toolName: "create_file"
+    applyTo: ["*.py"]
+    allowed: false
+    reason: "Only put scripts in root if they are used by patch_day process. Otherwise create in notes/ folder."
+  - toolName: "create_file"
+    applyTo: ["*.md"]
+    allowed: false
+    reason: "Only README.md stays in root. Analysis/documentation goes to notes/ folder."
   - toolName: "replace_string_in_file"
     applyTo: ["output/**"]
     allowed: true
@@ -62,6 +70,21 @@ Run everything with `patch_day.py`. Key flags:
 | `sc_blueprints.py`      | `crafting/`, `cargomanifest/`                     | `blueprints_received.csv`, `blueprint_rewards.csv`                   |
 | `sc_localization.py`    | `extract/Data/Localization/english/global.ini`    | `merged.ini`                                                         |
 | `sc_ore_locations.py`   | `mining/`, `harvestable/`                         | `ore_elements.csv`, `rock_compositions.csv`, `location_ore_dist.csv` |
+
+## Script Organization
+
+**Root-level scripts** (allowed):
+- `patch_day.py` — main orchestrator
+- `sc_config.py` — shared configuration
+- `sc_*.py` modules listed in the Submodules table above (pulled by `patch_day.py`)
+
+**Ad-hoc analysis & search scripts** (must go in `notes/` folder):
+- One-off data exploration scripts
+- Temporary analysis utilities created to answer specific questions
+- Search/filtering scripts used for investigation only
+- Examples: `analyze_*.py`, `search_*.py`, `gen_*.py`, `list_*.py`
+
+This keeps the root directory clean and makes the project's core pipeline clear. All temporary work goes in `notes/` for organization.
 
 ## DataForge XML Format
 
