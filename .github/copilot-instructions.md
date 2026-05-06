@@ -74,11 +74,13 @@ Run everything with `patch_day.py`. Key flags:
 ## Script Organization
 
 **Root-level scripts** (allowed):
+
 - `patch_day.py` — main orchestrator
 - `sc_config.py` — shared configuration
 - `sc_*.py` modules listed in the Submodules table above (pulled by `patch_day.py`)
 
 **Ad-hoc analysis & search scripts** (must go in `notes/` folder):
+
 - One-off data exploration scripts
 - Temporary analysis utilities created to answer specific questions
 - Search/filtering scripts used for investigation only
