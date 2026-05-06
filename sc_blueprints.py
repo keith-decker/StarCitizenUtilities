@@ -127,7 +127,12 @@ def extract_blueprints() -> list[dict]:
             root = ET.parse(cf).getroot()
         except ET.ParseError:
             continue
-        for cc in root.iter("CareerContract"):
+        # CareerContract = used by ContractGeneratorHandler_Career
+        # Contract (with debugName) = used by ContractGeneratorHandler_Legacy
+        contract_nodes = list(root.iter("CareerContract")) + [
+            e for e in root.iter("Contract") if e.get("debugName")
+        ]
+        for cc in contract_nodes:
             mission_name = cc.get("debugName", "")
             if not mission_name:
                 continue

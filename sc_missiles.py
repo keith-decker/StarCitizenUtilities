@@ -126,6 +126,7 @@ def build_missiles_ini(rows: list[dict], key_map: dict[str, str]) -> tuple[int, 
 
     Writes entries like:
       item_NameGMISL_S01_CS_FSKI_Spark=[CS] Spark I-G Missile
+      item_NameGMISL_S01_CS_FSKI_Spark_short=[CS] Spark I-G
 
     Args:
         rows: List of dicts with keys: entity_class, missile_type, base_name
@@ -163,6 +164,11 @@ def build_missiles_ini(rows: list[dict], key_map: dict[str, str]) -> tuple[int, 
             # We'll look it up to preserve the full original name
             formatted_name = f"[{missile_type}] {base_name}"
             lines.append(f"{loc_key}={formatted_name}")
+            count += 1
+
+            # Also generate the short version (without "Missile" or "Torpedo")
+            short_name = formatted_name.replace(" Missile", "").replace(" Torpedo", "")
+            lines.append(f"{loc_key}_short={short_name}")
             count += 1
 
     lines.append("")

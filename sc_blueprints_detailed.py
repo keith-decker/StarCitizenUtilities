@@ -248,6 +248,7 @@ def _load_entity_display_names(loc_map: dict[str, str]) -> dict[str, str]:
       - FPS weapons (all variants, all manufacturers, ballistic + energy)
       - FPS weapon magazines / ammo
       - FPS armor (all manufacturers, all weight classes)
+      - Ship components (power plants, shields, coolers, quantum drives, etc.)
 
     Uses <Localization Name="@KEY"> in each entity XML, resolved via loc_map.
     Falls back to empty string if no valid localization found.
@@ -270,6 +271,13 @@ def _load_entity_display_names(loc_map: dict[str, str]) -> dict[str, str]:
         / "starwear"
         / "helmet",
     ]
+
+    # Add all ship component subdirectories (powerplant, shieldgenerator, cooler, etc.)
+    ships_dir = DATA_ROOT / "entities" / "scitem" / "ships"
+    if ships_dir.exists():
+        for subdir in ships_dir.iterdir():
+            if subdir.is_dir() and not subdir.name.startswith("_"):
+                entity_dirs.append(subdir)
 
     loc_re = re.compile(r'<Localization\b[^>]*\bName="@([^"]+)"', re.IGNORECASE)
 
@@ -405,12 +413,137 @@ def _get_display_name(item_id: str, display_names: dict[str, str]) -> str:
     return item_id
 
 
+def _build_mission_standing_index(loc_map: dict[str, str]) -> dict[str, dict]:
+    """
+    Scan all contract XMLs and reputation standings to build a per-mission index of:
+      faction (display name), min_standing (human label), is_rank_locked (bool)
+
+    Returns dict keyed by mission debugName (base name, _V suffix stripped).
+    """
+    contracts_root = DATA_ROOT / "contracts"
+    standings_root = DATA_ROOT / "reputation" / "standings"
+    factionrep_root = DATA_ROOT / "factions" / "factionreputation"
+
+    if not contracts_root.exists():
+        return {}
+
+    # --- Step 1: Build standing GUID -> human label ---
+    standing_label: dict[str, str] = {}  # lower-guid -> label
+    if standings_root.exists():
+        for xml_file in standings_root.rglob("*.xml"):
+            try:
+                text = xml_file.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            ref_m = re.search(r'__ref="([^"]*)"', text)
+            if not ref_m:
+                continue
+            guid = ref_m.group(1).lower()
+            for key in re.findall(r"@([A-Za-z0-9_]+)", text):
+                if key in ("blank_space", "LOC_PLACEHOLDER"):
+                    continue
+                label = loc_map.get(key.lower(), "")
+                if label:
+                    standing_label[guid] = label
+                    break
+
+    # --- Step 2: Build faction GUID -> display name (from filename) ---
+    faction_name: dict[str, str] = {}  # lower-guid -> name
+    if factionrep_root.exists():
+        for xml_file in factionrep_root.rglob("*.xml"):
+            try:
+                text = xml_file.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            ref_m = re.search(r'__ref="([^"]*)"', text)
+            if not ref_m:
+                continue
+            guid = ref_m.group(1).lower()
+            # Try loc keys first
+            for key in re.findall(r"@([A-Za-z0-9_]+)", text):
+                if key in ("blank_space", "LOC_PLACEHOLDER"):
+                    continue
+                label = loc_map.get(key.lower(), "")
+                if label:
+                    faction_name[guid] = label
+                    break
+            if guid not in faction_name:
+                # Derive from filename: factionreputation_lawful_eckhartsecurity -> Eckhartsecurity
+                stem = xml_file.stem
+                parts = stem.split("_")
+                if len(parts) > 2:
+                    faction_name[guid] = " ".join(p.capitalize() for p in parts[2:])
+
+    # --- Step 3: Parse contract XMLs with ElementTree ---
+    # ContractGeneratorHandler_Career: factionReputation on handler, minStanding on
+    #   ContractPrerequisite_Reputation within each CareerContract.
+    # ContractGeneratorHandler_List: each Contract in <contracts> has
+    #   ContractPrerequisite_Reputation in its <additionalPrerequisites>.
+    index: dict[str, dict] = {}
+    NULL_GUID = "00000000-0000-0000-0000-000000000000"
+
+    def _add(name: str, fac_guid: str, min_guid: str, max_guid: str) -> None:
+        base = name[:-2] if name.endswith("_V") else name
+        if base in index:
+            return
+        index[base] = {
+            "faction": faction_name.get(fac_guid.lower(), ""),
+            "min_standing": standing_label.get(min_guid.lower(), ""),
+            "is_rank_locked": min_guid.lower() == max_guid.lower(),
+        }
+
+    for xml_file in contracts_root.rglob("*.xml"):
+        try:
+            tree = ET.parse(xml_file)
+        except ET.ParseError:
+            continue
+        root_elem = tree.getroot()
+
+        # Career handlers
+        for handler in root_elem.iter("ContractGeneratorHandler_Career"):
+            fac_guid = handler.get("factionReputation", "")
+            for cc in handler.iter("CareerContract"):
+                name = cc.get("debugName", "")
+                if not name:
+                    continue
+                # minStanding and maxStanding are direct attributes on CareerContract
+                min_guid = cc.get("minStanding", "")
+                max_guid = cc.get("maxStanding", "")
+                if min_guid and min_guid != NULL_GUID:
+                    _add(name, fac_guid, min_guid, max_guid)
+
+        # List handlers
+        for handler in root_elem.iter("ContractGeneratorHandler_List"):
+            contracts_elem = handler.find("contracts")
+            if contracts_elem is None:
+                continue
+            for contract in contracts_elem:
+                name = contract.get("debugName", "")
+                if not name:
+                    continue
+                # additionalPrerequisites is a direct child of the contract element
+                add_prereqs = contract.find("additionalPrerequisites")
+                if add_prereqs is None:
+                    continue
+                prereq = add_prereqs.find("ContractPrerequisite_Reputation")
+                if prereq is None:
+                    continue
+                fac_guid = prereq.get("factionReputation", "")
+                min_guid = prereq.get("minStanding", "")
+                max_guid = prereq.get("maxStanding", "")
+                if min_guid and min_guid != NULL_GUID:
+                    _add(name, fac_guid, min_guid, max_guid)
+
+    return index
+
+
 def _extract_blueprint_data(
     blueprint_file: Path,
     resource_map: dict[str, str],
     loc_map: dict[str, str],
     display_names: dict[str, str],
     mission_sources: list[dict],
+    mission_standing_index: dict[str, dict] | None = None,
 ) -> dict:
     """Extract all relevant data from a blueprint XML file."""
     try:
@@ -471,7 +604,25 @@ def _extract_blueprint_data(
         "blueprint_file": blueprint_file.name,
         "category": category,
         "mission_sources": [
-            {"mission_name": m["MissionName"], "chance": float(m.get("Chance", 0))}
+            {
+                "mission_name": m["MissionName"],
+                "chance": float(m.get("Chance", 0)),
+                **(
+                    {
+                        "faction": (mission_standing_index or {})
+                        .get(m["MissionName"], {})
+                        .get("faction", ""),
+                        "min_standing": (mission_standing_index or {})
+                        .get(m["MissionName"], {})
+                        .get("min_standing", ""),
+                        "is_rank_locked": (mission_standing_index or {})
+                        .get(m["MissionName"], {})
+                        .get("is_rank_locked", False),
+                    }
+                    if mission_standing_index is not None
+                    else {}
+                ),
+            }
             for m in item_missions
         ],
         "tiers": tiers,
@@ -517,16 +668,25 @@ def extract_all_blueprints(blueprint_rewards: list[dict] = None) -> int:
     display_names = _load_entity_display_names(loc_map)
     print(f"      {len(display_names)} entity display names loaded.")
 
-    step("[3/5] Scanning blueprint files")
+    step("[3/5] Building mission → standing/faction index")
+    mission_standing_index = _build_mission_standing_index(loc_map)
+    print(f"      {len(mission_standing_index)} missions indexed with standing data.")
+
+    step("[4/5] Scanning blueprint files")
     blueprint_files = list(blueprint_dir.rglob("*.xml"))
     print(f"      {len(blueprint_files)} blueprint files found.")
 
-    step("[4/5] Extracting blueprint data")
+    step("[5/5] Extracting blueprint data")
     blueprints: list[dict] = []
 
     for bp_file in blueprint_files:
         data = _extract_blueprint_data(
-            bp_file, resource_map, loc_map, display_names, blueprint_rewards
+            bp_file,
+            resource_map,
+            loc_map,
+            display_names,
+            blueprint_rewards,
+            mission_standing_index,
         )
         if data:
             blueprints.append(data)
@@ -534,7 +694,7 @@ def extract_all_blueprints(blueprint_rewards: list[dict] = None) -> int:
     # Sort by item_id for consistency
     blueprints.sort(key=lambda x: x["item_id"])
 
-    step(f"[5/5] Writing {BLUEPRINTS_JSON}")
+    step(f"[6/6] Writing {BLUEPRINTS_JSON}")
 
     with open(BLUEPRINTS_JSON, "w", encoding="utf-8") as f:
         json.dump(blueprints, f, indent=2, ensure_ascii=False)
