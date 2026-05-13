@@ -75,12 +75,57 @@ python patch_day.py --full --skip-dcb --deploy # same + deploy
 |---|---|---|
 | `src\global.ini` | Raw localization extracted from `Data.p4k` | No |
 | `output\merged.ini` | Final merged localization (deploy this) | No |
+| `output\blueprints.json` | All blueprints with metadata + mission sources (`--crafting`, `--full`) | No |
 | `output\blueprint_rewards.csv` | Mission → blueprint reward rows (`--full`) | Yes |
 | `output\ship_components.csv` | Ship component name rows (`--full`) | Yes |
 | `ship_components.ini` | Auto-generated component name overrides (`--full`) | No |
 | `mission_blueprints.ini` | Auto-generated mission description + title overrides (`--full`) | No |
 | `unresolved_blueprint_items.md` | Items whose names couldn't be resolved from `global.ini` | No |
 | `G:\RSI\StarCitizen\LIVE\Data\Localization\english\global.ini` | Live game file (`--deploy` only) | — |
+
+### blueprints.json Schema
+
+Each blueprint entry contains:
+
+```json
+{
+  "item_id": "string",           // Unique item identifier (e.g., "qdrv_just_s01_colossus_scitem")
+  "display_name": "string",      // Human-readable name from localization
+  "blueprint_guid": "string",    // DataForge UUID
+  "blueprint_file": "string",    // Source XML filename
+  "category": "string",          // One of: fps_weapons, fps_weapons_ammo, fps_armor, ship_components, other
+  "grade": "string",             // [Ship components only] One of: A, B, C, D (mapped from grades 1-4)
+  "class": "string",             // [Ship components only] E.g., "Military", "Stealth", "Industrial", "Competition"
+  "mission_sources": [
+    {
+      "mission_name": "string",
+      "chance": 0.0,             // Probability of drop (0–1)
+      "faction": "string",       // Faction offering mission
+      "min_standing": "string",  // Minimum standing required (e.g., "Neutral", "Jr. Contractor")
+      "is_rank_locked": boolean
+    }
+  ],
+  "tiers": [
+    {
+      "tier": 0,
+      "craft_time": {
+        "days": int, "hours": int, "minutes": int, "seconds": int,
+        "total_seconds": int
+      },
+      "material_slots": [
+        {
+          "resource_guid": "string",
+          "resource_name": "string",      // Slot label (e.g., "BARREL", "FRAME")
+          "material_name": "string",      // Ore/mineral name (e.g., "Iron", "Lindinium")
+          "quantity_scu": float,          // Required quantity in SCU
+          "min_quality": int              // Minimum quality (0–1000)
+        }
+      ]
+    }
+  ],
+  "armor_class": "string"        // [FPS armor only] One of: light, medium, heavy
+}
+```
 
 ---
 

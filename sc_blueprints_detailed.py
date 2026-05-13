@@ -5,9 +5,17 @@ and output as structured JSON for tool consumption.
 Categories:
   - fps_weapons: FPS weapon blueprints (guns, rifles, etc.)
   - fps_armor: FPS armor blueprints (suits, helmets, backpacks)
-  - ship_components: Ship component blueprints (power plants, shields, etc.)
+  - ship_components: Ship component blueprints (power plants, shields, quantum drives, coolers, radars)
 
-Output structure organized by category for easy filtering and querying.
+Output JSON structure:
+  - All blueprints include: item_id, display_name, blueprint_guid, blueprint_file, category,
+    mission_sources (with faction, standing, and reward chance), and tiers (craft time + materials).
+  - Ship components additionally include:
+    * grade: One of ['A', 'B', 'C', 'D'] (mapped from game grades [1-4])
+    * class: Component class (e.g. "Military", "Stealth", "Industrial") extracted from localization
+
+The metadata enrichment (grade/class) enables downstream tools to prioritize components by
+quality tier and specialization without re-scanning XML files.
 """
 
 import csv
@@ -24,6 +32,14 @@ from sc_config import (
     step,
 )
 from sc_resource_mapping import get_resource_mapping
+from sc_ship_components import (
+    GRADE_MAP,
+    _RE_ATTACH,
+    _RE_ATTR,
+    _RE_ENTITY,
+    _RE_CLASS,
+    COMPONENT_TYPES,
+)
 
 # Material GUID → specific ore name mapping
 # Discovered by scanning commodity filenames (e.g., commodity_metal_iron, commodity_mineral_hephaestanite)
@@ -57,12 +73,62 @@ MATERIAL_NAME_MAP = {
 }
 
 
+def _load_ship_component_metadata(loc_map: dict[str, str]) -> dict[str, dict]:
+    """
+    Scan ship entity XMLs and return item_id -> {grade, class} for all
+    ship_components. Uses the same AttachDef regex approach as sc_ship_components.py.
+    """
+    metadata: dict[str, dict] = {}
+    ships_dir = DATA_ROOT / "entities" / "scitem" / "ships"
+    if not ships_dir.exists():
+        return metadata
+
+    for xml_path in ships_dir.rglob("*.xml"):
+        item_id = xml_path.stem.lower()
+        try:
+            content = xml_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+
+        attach_m = _RE_ATTACH.search(content)
+        if not attach_m:
+            continue
+        attrs = dict(_RE_ATTR.findall(attach_m.group(0)))
+        item_type = attrs.get("Type", "")
+        if item_type not in COMPONENT_TYPES:
+            continue
+
+        grade_raw = attrs.get("Grade", "")
+        grade = GRADE_MAP.get(grade_raw, grade_raw)
+
+        entity_m = _RE_ENTITY.search(content)
+        entity_class = entity_m.group(1) if entity_m else ""
+        component_class = ""
+        if entity_class:
+            base = re.sub(r"_SCItem$", "", entity_class, flags=re.IGNORECASE)
+            for key in (
+                f"item_Desc{entity_class}",
+                f"item_Desc_{entity_class}",
+                f"item_Desc{base}",
+                f"item_Desc_{base}",
+            ):
+                if key.lower() in loc_map:
+                    m = _RE_CLASS.search(loc_map[key.lower()])
+                    if m:
+                        component_class = m.group(1).strip()
+                        break
+
+        metadata[item_id] = {"grade": grade, "class": component_class}
+
+    return metadata
+
+
 def _categorize_blueprint(item_id: str) -> str:
     """Determine blueprint category from item ID."""
     item_lower = item_id.lower()
 
-    # Ship components
-    if item_lower.startswith(("powr_", "shld_")):
+    # Ship components (power plants, shields, quantum drives, coolers, radars)
+    if item_lower.startswith(("powr_", "shld_", "qdrv_", "cool_", "radr_")):
         return "ship_components"
 
     # FPS weapons - various manufacturers
@@ -100,10 +166,20 @@ def _categorize_blueprint(item_id: str) -> str:
                 return "fps_weapons_ammo"
             return "fps_weapons"
 
-    # FPS armor - various manufacturers
+    # FPS armor - various manufacturers (including thp_, srvl_, vgl_ prefix armor sets)
     if any(
         item_lower.startswith(mfr)
-        for mfr in ["cds_", "qrt_", "kap_", "omc_", "clda_", "grin_"]
+        for mfr in [
+            "cds_",
+            "qrt_",
+            "kap_",
+            "omc_",
+            "clda_",
+            "grin_",
+            "thp_",
+            "srvl_",
+            "vgl_",
+        ]
     ):
         if any(
             armor_part in item_lower
@@ -544,6 +620,7 @@ def _extract_blueprint_data(
     display_names: dict[str, str],
     mission_sources: list[dict],
     mission_standing_index: dict[str, dict] | None = None,
+    component_metadata: dict[str, dict] | None = None,
 ) -> dict:
     """Extract all relevant data from a blueprint XML file."""
     try:
@@ -629,6 +706,12 @@ def _extract_blueprint_data(
     }
     if armor_class is not None:
         result["armor_class"] = armor_class
+    if category == "ship_components" and component_metadata:
+        meta = component_metadata.get(item_id.lower(), {})
+        if meta.get("grade"):
+            result["grade"] = meta["grade"]
+        if meta.get("class"):
+            result["class"] = meta["class"]
     return result
 
 
@@ -672,6 +755,10 @@ def extract_all_blueprints(blueprint_rewards: list[dict] = None) -> int:
     mission_standing_index = _build_mission_standing_index(loc_map)
     print(f"      {len(mission_standing_index)} missions indexed with standing data.")
 
+    step("[3b/5] Loading ship component grade/class metadata")
+    component_metadata = _load_ship_component_metadata(loc_map)
+    print(f"      {len(component_metadata)} ship component entries loaded.")
+
     step("[4/5] Scanning blueprint files")
     blueprint_files = list(blueprint_dir.rglob("*.xml"))
     print(f"      {len(blueprint_files)} blueprint files found.")
@@ -687,6 +774,7 @@ def extract_all_blueprints(blueprint_rewards: list[dict] = None) -> int:
             display_names,
             blueprint_rewards,
             mission_standing_index,
+            component_metadata,
         )
         if data:
             blueprints.append(data)

@@ -5,7 +5,8 @@ SC Patch Day — Star Citizen patch-day extraction and merge orchestrator.
 Modes:
   (default)  Localization only — extract global.ini, apply overrides, write merged.ini
   --full     Full extract — localization + blueprints + weapons + quality data + localization INIs
-  --crafting Crafting data only — blueprints.json, fps_weapons.csv, quality_quantization.json (no localization merge)
+  --crafting Crafting data only — blueprints.json (with grade/class for ship components),
+             fps_weapons.csv, quality_quantization.json (no localization merge)
 
 Flags:
   --ptu        Target the PTU installation instead of LIVE (default: LIVE)
@@ -25,6 +26,13 @@ Usage:
     python patch_day.py --full --deploy          # everything + deploy to game
     python patch_day.py --full --skip-dcb        # full extract, reuse existing DCB records
     python patch_day.py --full --skip-dcb --deploy  # same + deploy to game
+
+Output:
+  - blueprints.json: Comprehensive blueprint metadata including grade and class for
+    ship components, enabling downstream tools to prioritize by quality tier and specialization.
+  - fps_weapons.csv: Base game weapon stats.
+  - quality_quantization.json: Quality band definitions for all mineable materials.
+  - merged.ini: Final localization overrides ready for deployment.
 
 All paths are configured in sc_config.py.
 """
